@@ -7,11 +7,11 @@ from torch import nn
 from transformers import PreTrainedModel, GenerationMixin
 from transformers.modeling_outputs import MoeCausalLMOutputWithPast
 
-from .config import MiniMindConfig
-from .modules.norm import RMSNorm
-from .modules.rope import precompute_freqs_cis
-from .modules.block import MiniMindBlock
-from .modules.feed_forward import MOEFeedForward
+from config import MiniMindConfig
+from modules.norm import RMSNorm
+from modules.rope import precompute_freqs_cis
+from modules.block import MiniMindBlock
+from modules.feed_forward import MOEFeedForward
 
 
 class MiniMindModel(nn.Module):

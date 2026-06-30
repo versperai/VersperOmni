@@ -11,7 +11,7 @@ from PIL import Image
 from torch.utils.data import Dataset
 from datasets import Dataset as HFDataset
 
-from ..vlm import MiniMindVLM
+from models.vlm import MiniMindVLM
 from .lm_dataset import pre_processing_chat, post_processing_chat
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"

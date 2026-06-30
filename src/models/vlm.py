@@ -8,11 +8,11 @@ from torch import nn
 from transformers import SiglipImageProcessor, SiglipVisionModel
 from transformers.modeling_outputs import MoeCausalLMOutputWithPast
 
-from .config import VLMConfig
-from .model import MiniMindForCausalLM
-from .modules.norm import RMSNorm
-from .modules.rope import precompute_freqs_cis
-from .modules.feed_forward import MOEFeedForward
+from config import VLMConfig
+from models.llm import MiniMindForCausalLM
+from modules.norm import RMSNorm
+from modules.rope import precompute_freqs_cis
+from modules.feed_forward import MOEFeedForward
 
 
 class MMVisionProjector(nn.Module):

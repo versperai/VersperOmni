@@ -21,7 +21,7 @@ out/
 checkpoints/
 
 # Dataset
-dataset/
+/dataset/
 
 # OS
 .DS_Store

@@ -1,13 +1,13 @@
 """
 Simple text chat demo using VersperOmni LM.
 """
-import sys
-sys.path.append(".")
+import sys, os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import torch
 from transformers import AutoTokenizer
-from versper.config import MiniMindConfig
-from versper.model import MiniMindForCausalLM
+from config import MiniMindConfig
+from models.llm import MiniMindForCausalLM
 
 
 def main():

@@ -36,4 +36,4 @@ all = [
 where = ["src"]
 
 [tool.setuptools.package-data]
-"versper" = ["**/*.py"]
+"*" = ["**/*.py"]

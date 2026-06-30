@@ -15,7 +15,7 @@ Usage:
         --data_path ../dataset/sft_i2t.parquet --mode vision_proj --lr 5e-5
 """
 import os, sys
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import argparse, time, warnings, torch
 import torch.nn as nn
@@ -26,10 +26,10 @@ from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data import DataLoader, DistributedSampler
 from transformers import AutoTokenizer
 
-from versper.config import OmniConfig
-from versper.omni import MiniMindOmni
-from versper.dataset.omni_dataset import OmniDataset, omni_collate_fn
-from versper.trainer.utils import (
+from config import OmniConfig
+from models.omni import MiniMindOmni
+from dataset.omni_dataset import OmniDataset, omni_collate_fn
+from trainer.utils import (
     get_lr, Logger, is_main_process, init_distributed_mode, setup_seed,
     log_model_params, save_checkpoint, load_checkpoint, SkipBatchSampler,
 )

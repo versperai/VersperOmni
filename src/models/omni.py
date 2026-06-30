@@ -16,12 +16,12 @@ from types import SimpleNamespace
 from transformers.modeling_outputs import MoeCausalLMOutputWithPast
 from transformers import SiglipImageProcessor, SiglipVisionModel
 
-from .config import OmniConfig
-from .model import MiniMindForCausalLM
-from .modules.norm import RMSNorm
-from .modules.rope import precompute_freqs_cis
-from .modules.block import MiniMindBlock
-from .modules.feed_forward import MOEFeedForward
+from config import OmniConfig
+from models.llm import MiniMindForCausalLM
+from modules.norm import RMSNorm
+from modules.rope import precompute_freqs_cis
+from modules.block import MiniMindBlock
+from modules.feed_forward import MOEFeedForward
 
 
 # ═══════════════════════════════════════════════
