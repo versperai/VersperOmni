@@ -32,7 +32,7 @@ from versper.trainer.utils import (
 warnings.filterwarnings("ignore")
 
 
-def train_epoch(epoch, loader, iters, start_step=0, wandb=None):
+def train_epoch(epoch, loader, iters, start_step=0, wandb=None, tb_writer=None):
     start_time = time.time()
     last_step = start_step
     for step, (input_ids, labels) in enumerate(loader, start=start_step + 1):
@@ -59,6 +59,11 @@ def train_epoch(epoch, loader, iters, start_step=0, wandb=None):
             Logger(f"Epoch:[{epoch+1}/{args.epochs}]({step}/{iters}), loss: {cur_loss:.4f}, lr: {cur_lr:.8f}, eta: {eta:.1f}min")
             if wandb:
                 wandb.log({"loss": cur_loss, "lr": cur_lr, "eta": eta})
+            if tb_writer:
+                global_step = epoch * iters + step
+                tb_writer.add_scalar("loss", cur_loss, global_step)
+                tb_writer.add_scalar("lr", cur_lr, global_step)
+                tb_writer.add_scalar("eta_min", eta, global_step)
         if (step % args.save_interval == 0 or step == iters) and is_main_process():
             model.eval()
             save_checkpoint(lm_config, args.save_weight, model=model, optimizer=optimizer,
@@ -97,6 +102,7 @@ if __name__ == "__main__":
     parser.add_argument("--from_resume", default=0, type=int, choices=[0, 1])
     parser.add_argument("--use_wandb", action="store_true")
     parser.add_argument("--wandb_project", default="VersperOmni-Pretrain")
+    parser.add_argument("--use_tensorboard", action="store_true")
     parser.add_argument("--use_compile", default=0, type=int, choices=[0, 1])
     args = parser.parse_args()
 
@@ -121,6 +127,15 @@ if __name__ == "__main__":
                    name=f"Pretrain-E{args.epochs}-B{args.batch_size}",
                    id=ckp_data.get("wandb_id") if ckp_data else None,
                    resume="must" if ckp_data and ckp_data.get("wandb_id") else None)
+
+    tb_writer = None
+    if args.use_tensorboard and is_main_process():
+        try:
+            from torch.utils.tensorboard import SummaryWriter
+            tb_writer = SummaryWriter(log_dir=os.path.join(args.save_dir, "runs", "pretrain"))
+            Logger(f"TensorBoard logging to {args.save_dir}/runs/pretrain")
+        except ModuleNotFoundError:
+            Logger("tensorboard not installed; run: pip install tensorboard")
 
     tokenizer = AutoTokenizer.from_pretrained(args.tokenizer_path)
     model = MiniMindForCausalLM(lm_config)
@@ -158,10 +173,12 @@ if __name__ == "__main__":
         loader = DataLoader(train_ds, batch_sampler=batch_sampler,
                             num_workers=args.num_workers, pin_memory=True)
         if skip > 0:
-            train_epoch(epoch, loader, len(loader) + skip, start_step, wandb)
+            train_epoch(epoch, loader, len(loader) + skip, start_step, wandb, tb_writer)
         else:
-            train_epoch(epoch, loader, len(loader), 0, wandb)
+            train_epoch(epoch, loader, len(loader), 0, wandb, tb_writer)
 
     if dist.is_initialized():
         dist.barrier()
         dist.destroy_process_group()
+    if tb_writer:
+        tb_writer.close()
