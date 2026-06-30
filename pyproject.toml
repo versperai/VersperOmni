@@ -15,7 +15,11 @@ dependencies = [
     "Pillow>=10.0.0",
     "pyarrow>=14.0.0",
     "sentencepiece>=0.2.0",
+    "textual>=8.0.0",
 ]
+
+[project.scripts]
+versper-tui = "versper.tui.app:main"
 
 [project.optional-dependencies]
 vlm = []

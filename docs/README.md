@@ -30,6 +30,7 @@
 | 实战指南 | [guides/02-demo.md](guides/02-demo.md) | 交互式演示与 Web Demo |
 | 实战指南 | [guides/03-evaluation.md](guides/03-evaluation.md) | 模型评估指南 |
 | 实战指南 | [guides/04-advanced.md](guides/04-advanced.md) | 高级特性（流式/VAD/实时会话） |
+| 实战指南 | [guides/05-tui.md](guides/05-tui.md) | TUI 终端界面 |
 | 参考速查 | [reference/01-performance.md](reference/01-performance.md) | 性能与实验结果 |
 | 参考速查 | [reference/02-interview-qa.md](reference/02-interview-qa.md) | 面试问答集锦 |
 
