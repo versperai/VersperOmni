@@ -1,6 +1,7 @@
 # VersperOmni 整体架构总览
 
 > 基于 MiniMind-O Technical Report 整理，适用于学习和面试准备
+> 代码集中于 `src/versper/` 单一包中：`model.py`（LM）、`vlm.py`（VLM）、`omni.py`（Omni）
 
 ## 1. 项目定位
 
@@ -13,10 +14,10 @@ VersperOmni 是一个**开源的小规模语音原生全模态模型**（Omni Mo
 | **参数规模** | 约 1 亿活跃参数（Dense: 115M / MoE: 115M active） |
 | **输入模态** | Text + Speech + Image |
 | **输出模态** | Text + Streaming Speech（24kHz 波形） |
-| **训练成本** | 4× RTX 3090，单变体约 4 小时 |
+| **训练成本** | 4x RTX 3090，单变体约 4 小时 |
 | **开源程度** | 模型代码 + 权重 + Parquet 训练数据集全开源 |
 
-## 2. 核心架构：Thinker–Talker
+## 2. 核心架构：Thinker-Talker
 
 ```
                          ┌─────────────────────┐
@@ -44,6 +45,7 @@ VersperOmni 是一个**开源的小规模语音原生全模态模型**（Omni Mo
 - 词表大小 6400（轻量级 tokenizer）
 - 负责语义理解、推理、文本生成
 - **Dense 版**：63.91M 参数 / **MoE 版**：198.42M 总参数（活跃 ~同 Dense）
+- 代码位置：`src/versper/model.py` 中的 `MiniMindForCausalLM`
 
 ### Talker（说话器）
 - 独立的 **4 层 MiniMind blocks**
@@ -51,6 +53,7 @@ VersperOmni 是一个**开源的小规模语音原生全模态模型**（Omni Mo
 - **rank-256 低秩 adapter**（输入输出各 8 份，共享底座）
 - **Dense 版**：47.05M 参数 / **MoE 版**：114.30M 总参数
 - 初始化：从 Thinker 最后 4 层拷贝权重（维度匹配时）
+- 代码位置：`src/versper/omni.py` 中的 `MiniMindOmni`
 
 ## 3. 输入处理管线
 
@@ -58,15 +61,15 @@ VersperOmni 是一个**开源的小规模语音原生全模态模型**（Omni Mo
 | 模块 | 具体模型 | 参数 |
 |------|---------|------|
 | 编码器 | SenseVoice-Small | 50 encoder blocks，output 512 dim (frozen) |
-| 投影器 | MMAudioProjector | LayerNorm(512) → Linear → GELU → Linear(768) |
-| 前端 | 16kHz 音频特征 | — |
+| 投影器 | MMAudioProjector | LayerNorm(512) -> Linear -> GELU -> Linear(768) |
+| 前端 | 16kHz 音频特征 | -- |
 
 ### 图像输入
 | 模块 | 具体模型 | 参数 |
 |------|---------|------|
 | 编码器 | SigLIP2 base patch32-256 | 12 层 ViT，hidden 768 (frozen) |
-| 投影器 | MMVisionProjector | LayerNorm(768) → Linear → GELU → Linear(768) |
-| 图像 token | 64 个 placeholder 位置 | — |
+| 投影器 | MMVisionProjector | LayerNorm(768) -> Linear -> GELU -> Linear(768) |
+| 图像 token | 64 个 placeholder 位置 | -- |
 
 ### 语音输出（Codec）
 | 模块 | 具体模型 | 参数 |
@@ -82,13 +85,13 @@ VersperOmni 是一个**开源的小规模语音原生全模态模型**（Omni Mo
 
 ## 4. 数据流概要
 
-1. **Text**: 直接通过 token embedding table → Thinker
-2. **Audio**: SenseVoice 编码 → MLP 投影 → 替换 `<|audio_pad|>` 位置
-3. **Image**: SigLIP2 编码 → MLP 投影 → 替换 `<|image_pad|>` 位置
+1. **Text**: 直接通过 token embedding table -> Thinker
+2. **Audio**: SenseVoice 编码 -> MLP 投影 -> 替换 `<|audio_pad|>` 位置
+3. **Image**: SigLIP2 编码 -> MLP 投影 -> 替换 `<|image_pad|>` 位置
 4. **Speaker**: CAM++ 向量投影后填入 `<|audio_spk|>` 位置的所有 8 层
-5. **Bridge**: Thinker 第 3 层 hidden state → embed_proj → Talker
-6. **Talker fusion**: embed_proj(bridge) × text_scale + codec_proj(history) × audio_scale
-7. **Output**: Talker → 8 个 codebook heads → Mimi 解码 → 24kHz waveform
+5. **Bridge**: Thinker 第 3 层 hidden state -> embed_proj -> Talker
+6. **Talker fusion**: embed_proj(bridge) x text_scale + codec_proj(history) x audio_scale
+7. **Output**: Talker -> 8 个 codebook heads -> Mimi 解码 -> 24kHz waveform
 
 ## 5. 模型配置对比
 
@@ -99,13 +102,13 @@ VersperOmni 是一个**开源的小规模语音原生全模态模型**（Omni Mo
 | Audio 投影器 | 0.99M | 0.99M |
 | Vision 投影器 | 1.18M | 1.18M |
 | **总计活跃** | **~115.29M** | **~115.33M** |
-| Avg CER ↓ | 0.0897 | 0.0900 |
-| Voice Clone Overall ↑ | 0.5995 | 0.5937 |
+| Avg CER 下降 | 0.0897 | 0.0900 |
+| Voice Clone Overall 上升 | 0.5995 | 0.5937 |
 
 ## 6. 面试要点
 
 ### 问：为什么叫 Omni Model？
-全模态模型（Omni Model）指一个模型能同时处理和理解多种模态（文本、语音、图像），并能以多种模态输出。VersperOmni 做到了 text→text, text→speech, speech→speech, image→speech 的完整交互闭环。
+全模态模型（Omni Model）指一个模型能同时处理和理解多种模态（文本、语音、图像），并能以多种模态输出。VersperOmni 做到了 text->text, text->speech, speech->speech, image->speech 的完整交互闭环。
 
 ### 问：0.1B 这个规模有什么特殊之处？
 - 可以在消费级 GPU（如 RTX 3090）上完整复现训练流程（约 4 小时）
@@ -113,6 +116,38 @@ VersperOmni 是一个**开源的小规模语音原生全模态模型**（Omni Mo
 - 暴露了大规模下被掩盖的设计权衡（如 bridge layer 位置、低秩接口的 rank 选择）
 
 ### 问：Thinker-Talker 和传统的 Cascade 方案有什么区别？
-- **Cascade 方案**：ASR → LLM → TTS，LLM 处于声学环路之外
+- **Cascade 方案**：ASR -> LLM -> TTS，LLM 处于声学环路之外
 - **Thinker-Talker**：Talker 共享 Thinker 的语义 hidden state，实现语义-声学联合建模
 - 优势：错误可追溯、端到端优化、支持流式交互
+
+## 代码引用参考
+
+三个模型统一在 `src/versper/` 包中：
+
+```python
+from versper.config import MiniMindConfig, VLMConfig, OmniConfig
+from versper.model import MiniMindForCausalLM
+from versper.vlm import MiniMindVLM
+from versper.omni import MiniMindOmni
+```
+
+训练入口：
+
+```bash
+# 全模态训练（thinker + talker 联合）
+python -m versper.trainer.sft_omni --mode all
+
+# 仅训练 Thinker
+python -m versper.trainer.sft_omni --mode thinker
+
+# 仅训练 Talker
+python -m versper.trainer.sft_omni --mode talker
+```
+
+数据集位于 `src/versper/dataset/`：
+
+| 数据集模块 | 用途 |
+|-----------|------|
+| `lm_dataset.py` | 文本预训练 / SFT |
+| `vlm_dataset.py` | 视觉语言训练 |
+| `omni_dataset.py` | 全模态训练（T2A, I2T, A2A） |

@@ -4,7 +4,7 @@
 
 ## 1. 训练模式
 
-训练脚本 `train_sft_omni.py` 支持三种模式，通过命令行开关控制：
+训练脚本 `versper/trainer/sft_omni.py`（通过 `python -m versper.trainer.sft_omni` 启动）支持三种模式：
 
 | 模式 | 更新参数 | 冻结参数 | 用途 |
 |------|---------|---------|------|

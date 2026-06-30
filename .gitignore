@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+
+# Environment
+.venv/
+.env
+venv/
+
+# IDE
+.vscode/
+.idea/
+
+# Model weights / checkpoints
+out/
+checkpoints/
+
+# Dataset
+dataset/
+
+# OS
+.DS_Store
+Thumbs.db
