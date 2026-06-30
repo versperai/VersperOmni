@@ -1363,13 +1363,13 @@ class VersperTUI(App):
                 pass
 
         elif button_id == "btn-logs-copy":
-            import pyperclip
             try:
+                import pyperclip
                 text = "\n".join(self._log_lines)
                 pyperclip.copy(text)
                 self.post_message(LogMessage("Logs copied to clipboard"))
             except ImportError:
-                self.post_message(LogMessage("pyperclip not available", "warning"))
+                self.post_message(LogMessage("pyperclip not available; install with: pip install pyperclip", "warning"))
 
     # ── Lifecycle ────────────────────────────────────────────────────
 
