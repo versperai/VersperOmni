@@ -480,6 +480,10 @@ class VersperTUI(App):
         Binding("ctrl+g", "generate", "Generate", show=False),
         Binding("ctrl+c", "clear_output", "Clear", show=False),
         Binding("ctrl+s", "toggle_training", "Start/Stop", show=False),
+        Binding("left", "prev_metric", "Prev metric", show=False),
+        Binding("right", "next_metric", "Next metric", show=False),
+        Binding("up", "cycle_plot_kind", "Plot kind", show=False),
+        Binding("down", "cycle_plot_kind", "Plot kind", show=False),
     ]
 
     model_loaded = reactive(False)
@@ -510,6 +514,12 @@ class VersperTUI(App):
         # Last progress bar values (for rendering in custom widgets)
         self._epoch_progress = 0.0
         self._batch_progress = 0.0
+
+        # Burn-inspired plot selection state
+        self._plot_kinds = ["loss", "lr"]
+        self._plot_selected = 0  # index into _plot_kinds
+        self._available_kinds = ["Full", "Recent", "Summary"]
+        self._plot_kind_idx = 0  # 0=Full, 1=Recent, 2=Summary
 
     # ── Compose ──────────────────────────────────────────────────────
 
@@ -746,6 +756,74 @@ class VersperTUI(App):
         try:
             self.query_one("#infer-output").clear()
             self.query_one("#infer-input").text = ""
+        except NoMatches:
+            pass
+
+    def action_prev_metric(self) -> None:
+        """←: switch to previous plot metric."""
+        if self._plot_kinds:
+            self._plot_selected = (self._plot_selected - 1) % len(self._plot_kinds)
+            self._refresh_chart_metric()
+
+    def action_next_metric(self) -> None:
+        """→: switch to next plot metric."""
+        if self._plot_kinds:
+            self._plot_selected = (self._plot_selected + 1) % len(self._plot_kinds)
+            self._refresh_chart_metric()
+
+    def action_cycle_plot_kind(self) -> None:
+        """↑/↓: cycle through Full / Recent / Summary plot kinds."""
+        self._plot_kind_idx = (self._plot_kind_idx + 1) % len(self._available_kinds)
+        self._refresh_chart_title()
+
+    def _refresh_chart_metric(self) -> None:
+        """Rebuild chart with currently selected metric."""
+        try:
+            chart = self.query_one("#train-loss-chart")
+            if not isinstance(chart, BrailleLineChart):
+                return
+            chart.clear()
+            metric = self._plot_kinds[self._plot_selected]
+            data = getattr(self, f"_{metric}_history", [])
+            chart.add_series(metric, color="#e2b714")
+            for i, val in enumerate(data):
+                chart.add_point(metric, i, val)
+            # Update status
+            try:
+                status = self.query_one("#train-status-text")
+                kind = self._available_kinds[self._plot_kind_idx]
+                t = RichText()
+                t.append(" Status", style=RichStyle(color="#e2b714", bold=True))
+                t.append(f"\n  Plot: ", style=RichStyle(color="#6b7280"))
+                t.append(f"{metric}", style=RichStyle(color="#e2b714", bold=True))
+                t.append(f" [{kind}]", style=RichStyle(color="#4fc3f7"))
+                if self._current_loss:
+                    t.append(f"\n  Loss: ", style=RichStyle(color="#6b7280"))
+                    t.append(f"{self._current_loss:.4f}", style=RichStyle(color="#a0b0c0"))
+                if self._current_lr:
+                    t.append(f"\n  LR:   ", style=RichStyle(color="#6b7280"))
+                    t.append(f"{self._current_lr:.6f}", style=RichStyle(color="#a0b0c0"))
+                t.append(f"\n  Epoch: ", style=RichStyle(color="#6b7280"))
+                t.append(f"{self._epoch}/{self._total_epochs}", style=RichStyle(color="#a0b0c0"))
+                if self._step and self._total_steps:
+                    t.append(f"\n  Step: ", style=RichStyle(color="#6b7280"))
+                    t.append(f"{self._step}/{self._total_steps}", style=RichStyle(color="#a0b0c0"))
+                status.update(t)
+            except NoMatches:
+                pass
+        except NoMatches:
+            pass
+
+    def _refresh_chart_title(self) -> None:
+        """Update chart title to reflect selected metric and plot kind."""
+        try:
+            chart = self.query_one("#train-loss-chart")
+            if not isinstance(chart, BrailleLineChart):
+                return
+            metric = self._plot_kinds[self._plot_selected]
+            kind = self._available_kinds[self._plot_kind_idx]
+            chart._title = f"{metric} ({kind})"
+            chart.refresh()
         except NoMatches:
             pass
 
@@ -1053,8 +1131,12 @@ class VersperTUI(App):
                     total_epochs=self._total_epochs,
                 ))
 
-                # Update loss chart
-                self.post_message(LossPoint(loss_val, lr_val))
+                # Update loss chart with currently selected metric
+                metric = self._plot_kinds[self._plot_selected]
+                if metric == "loss":
+                    self.post_message(LossPoint(loss_val, lr_val))
+                elif metric == "lr":
+                    self.post_message(LossPoint(lr_val, loss_val))  # swap: x=step, y=lr
         except (ValueError, AttributeError):
             pass
 
@@ -1167,12 +1249,46 @@ class VersperTUI(App):
             pass
 
     def on_loss_point(self, msg: "LossPoint") -> None:
-        """Handle new loss data point — update chart."""
+        """Handle new data point — update chart and status."""
         try:
             chart = self.query_one("#train-loss-chart")
             if isinstance(chart, BrailleLineChart):
-                chart.add_series("loss", color="#e2b714")
-                chart.add_point("loss", len(self._loss_history), msg.loss)
+                metric = self._plot_kinds[self._plot_selected]
+                chart.add_series(metric, color="#e2b714")
+                if metric == "loss":
+                    chart.add_point(metric, len(self._loss_history), msg.loss)
+                else:
+                    chart.add_point(metric, len(self._lr_history), msg.lr)
+                chart.refresh()
+        except NoMatches:
+            pass
+
+        # Update status panel with latest values
+        try:
+            status = self.query_one("#train-status-text")
+            metric = self._plot_kinds[self._plot_selected]
+            kind = self._available_kinds[self._plot_kind_idx]
+            t = RichText()
+            t.append(" Status", style=RichStyle(color="#e2b714", bold=True))
+            t.append(f"\n  Plot: ", style=RichStyle(color="#6b7280"))
+            t.append(f"{metric}", style=RichStyle(color="#e2b714", bold=True))
+            t.append(f" [{kind}]", style=RichStyle(color="#4fc3f7"))
+            if self._current_loss:
+                t.append(f"\n  Loss: ", style=RichStyle(color="#6b7280"))
+                t.append(f"{self._current_loss:.4f}", style=RichStyle(color="#a0b0c0"))
+            if self._current_lr:
+                t.append(f"\n  LR:   ", style=RichStyle(color="#6b7280"))
+                t.append(f"{self._current_lr:.6f}", style=RichStyle(color="#a0b0c0"))
+            t.append(f"\n  Epoch: ", style=RichStyle(color="#6b7280"))
+            t.append(f"{self._epoch}/{self._total_epochs}", style=RichStyle(color="#a0b0c0"))
+            if self._step and self._total_steps:
+                t.append(f"\n  Step: ", style=RichStyle(color="#6b7280"))
+                t.append(f"{self._step}/{self._total_steps}", style=RichStyle(color="#a0b0c0"))
+            # Event counters (burn-inspired)
+            if self._loss_history:
+                t.append(f"\n  Points: ", style=RichStyle(color="#6b7280"))
+                t.append(f"{len(self._loss_history)}", style=RichStyle(color="#a0b0c0"))
+            status.update(t)
         except NoMatches:
             pass
 
