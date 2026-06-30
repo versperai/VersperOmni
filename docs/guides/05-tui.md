@@ -67,10 +67,13 @@ TUI 包含三个标签页，底部有全局快捷键提示：
 1. 配置训练参数
 2. 点击 **Start Training** 开始训练
 3. 训练过程中实时显示：
-   - Epoch 进度条
-   - Batch 进度条
-   - Loss 和 learning rate 日志
+   - Epoch 进度条 + Batch 进度条
+   - ETA 预估时间（右下角）
+   - Loss 实时折线图（右侧面板，Braille 点阵渲染）
+   - 训练日志（左侧面板下方）
+   - 当前状态（左侧面板上方）
 4. 可随时点击 **Stop** 终止训练
+5. 训练完成时弹出总结弹窗
 
 ### 训练输出解析
 TUI 自动解析训练脚本的 stdout 输出：
@@ -94,12 +97,15 @@ TUI 自动解析训练脚本的 stdout 输出：
 
 | 快捷键 | 功能 |
 |--------|------|
-| `q` | 退出应用 |
+| `q` | 退出应用（训练中弹出确认框） |
 | `h` | 显示帮助弹窗 |
 | `Tab` | 切换标签页 |
 | `Ctrl+I` | 切换到 Inference |
 | `Ctrl+T` | 切换到 Training |
 | `Ctrl+L` | 切换到 Logs |
+| `Ctrl+G` | Inference 标签页中生成回复 |
+| `Ctrl+C` | Inference 标签页中清空输出 |
+| `Ctrl+S` | Training 标签页中启动/停止训练 |
 
 ## 支持的模型
 

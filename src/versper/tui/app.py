@@ -1,13 +1,18 @@
 """
-VersperOmni TUI - Training + Inference terminal UI.
+VersperOmni TUI — Training + Inference terminal UI.
+
+Inspired by the Burn framework TUI (Rust / ratatui).
 
 Usage:
     versper-tui
     python -m versper.tui
 """
+from __future__ import annotations
+
 import asyncio
 import io
 import os
+import re
 import subprocess
 import sys
 import threading
@@ -27,12 +32,29 @@ from textual.widgets import (
     ProgressBar, RichLog, Select, Static, TabbedContent, TabPane,
     TextArea, Checkbox,
 )
+from textual.message import Message
 import torch
 
 from versper.config import MiniMindConfig, VLMConfig, OmniConfig
 from versper.model import MiniMindForCausalLM
 from versper.vlm import MiniMindVLM
 from versper.omni import MiniMindOmni
+
+from versper.tui.widgets import (
+    BrailleLineChart,
+    ETAEstimator,
+    COLOR_TRAIN,
+    COLOR_VALID,
+    COLOR_TEXT,
+    COLOR_DIM,
+    COLOR_ACCENT,
+    sparkline,
+    metric_row,
+    status_row,
+    format_eta,
+)
+from rich.style import Style as RichStyle
+from rich.text import Text as RichText
 
 
 # ── Constants ────────────────────────────────────────────────────────────
@@ -126,7 +148,7 @@ TabPane {
 }
 
 .model-select {
-    margin-bottom: 1;
+    height: auto;
 }
 
 /* ── Training Tab ─────────────────────────────────────── */
@@ -135,29 +157,69 @@ TabPane {
     height: 1fr;
 }
 
-#train-metrics-box {
-    height: 1fr;
-    border: solid #0f3460;
-    padding: 1;
-    margin-bottom: 1;
-}
-
-#train-progress-box {
-    height: auto;
-    border: solid #0f3460;
-    padding: 1;
-    margin-bottom: 1;
-}
-
-#train-controls {
-    height: auto;
-}
-
 #train-config-box {
     height: auto;
     border: solid #0f3460;
     padding: 1;
     margin-bottom: 1;
+}
+
+#train-config-box > Label {
+    color: #e2b714;
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+/* Left panel: controls + status + text metrics */
+#train-left-panel {
+    height: 1fr;
+    border: solid #0f3460;
+    padding: 0;
+    margin-right: 1;
+}
+
+/* Right panel: loss chart */
+#train-right-panel {
+    height: 1fr;
+    border: solid #0f3460;
+    padding: 0;
+}
+
+/* Bottom progress bars */
+#train-progress-panel {
+    height: 5;
+    border: solid #0f3460;
+    padding: 0 1;
+    margin-top: 1;
+}
+
+#train-progress-panel > Label {
+    color: #e2b714;
+    text-style: bold;
+}
+
+/* Controls / Status / Metrics sections inside left panel */
+.training-section {
+    height: auto;
+    margin: 0;
+}
+
+.training-section Label.title {
+    color: #e2b714;
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+/* The split container for left/right */
+#train-main-area {
+    height: 1fr;
+    min-height: 12;
+}
+
+/* Progress bar rows */
+.progress-row {
+    height: 1;
+    margin: 0;
 }
 
 /* ── Logs Tab ────────────────────────────────────────── */
@@ -204,7 +266,7 @@ RichLog {
 }
 
 ProgressBar {
-    margin-bottom: 1;
+    margin-bottom: 0;
 }
 
 .metric-row {
@@ -220,6 +282,41 @@ ProgressBar {
     color: #66bb6a;
     text-style: italic;
     margin-top: 1;
+}
+
+/* Status text styling */
+.status-label {
+    color: #e2b714;
+}
+.status-value {
+    color: #a0b0c0;
+}
+
+/* Training metrics display */
+#train-metrics-text {
+    height: 1fr;
+    min-height: 4;
+    border: none;
+}
+
+/* Controls display */
+#train-controls-text {
+    height: auto;
+    border: none;
+    margin: 0;
+}
+
+/* Status display */
+#train-status-text {
+    height: auto;
+    border: none;
+    margin: 0;
+}
+
+/* ETA label */
+#train-eta-label {
+    color: #6b7280;
+    text-style: italic;
 }
 """
 
@@ -247,6 +344,7 @@ class HelpScreen(ModalScreen):
                 "",
                 "[bold #e2b714]Training Tab[/]",
                 "  [bold]ctrl+s[/]    Start/stop training",
+                "  [bold]← →[/]       Switch between plotted metrics (TODO)",
                 "",
                 "Press [bold]Esc[/] or [bold]h[/] to close.",
             ]),
@@ -262,20 +360,126 @@ class HelpScreen(ModalScreen):
             self.app.pop_screen()
 
 
+# ── Quit Confirmation Screen ────────────────────────────────────────────
+
+class QuitScreen(ModalScreen):
+    """Quit confirmation popup — inspired by Burn TUI popup."""
+
+    def compose(self) -> ComposeResult:
+        yield Container(
+            Static(
+                "\n".join([
+                    "[bold #e2b714]Quit?[/]",
+                    "",
+                    "  [bold][s][/] Stop the training[/]",
+                    "                    Stop the training loop gracefully.",
+                    "",
+                    "  [bold][k][/] Kill[/]",
+                    "                    Kill the training immediately.",
+                    "",
+                    "  [bold][c][/] Cancel[/]",
+                    "                    Cancel and continue.",
+                ]),
+                id="quit-text",
+            ),
+            id="quit-dialog",
+        )
+
+    def on_key(self, event) -> None:
+        app = self.app
+        if not isinstance(app, VersperTUI):
+            return
+        if event.key == "s":
+            # Stop gracefully
+            if app.training_running:
+                app.training_running = False
+                if app._train_process:
+                    app._train_process.terminate()
+                app.post_message(LogMessage("Training stopped by user (graceful)"))
+                app.post_message(TrainingDone())
+            self.app.pop_screen()
+        elif event.key == "k":
+            # Kill immediately
+            if app.training_running:
+                app.training_running = False
+                if app._train_process:
+                    app._train_process.kill()
+                app.post_message(LogMessage("Training killed by user", "error"))
+                app.post_message(TrainingDone())
+            self.app.pop_screen()
+        elif event.key == "c":
+            # Cancel
+            self.app.pop_screen()
+        elif event.key == "escape":
+            self.app.pop_screen()
+
+
+# ── Training Done Screen ────────────────────────────────────────────────
+
+class TrainingDoneScreen(ModalScreen):
+    """Post-training popup — inspired by Burn TUI persistent mode."""
+
+    def compose(self) -> ComposeResult:
+        yield Container(
+            Static(
+                "\n".join([
+                    "[bold #e2b714]Training Complete[/]",
+                    "",
+                    "  Press [bold]x[/] to close this dialog.",
+                    "  Press [bold]q[/] to quit the application.",
+                ]),
+                id="done-text",
+            ),
+            id="done-dialog",
+        )
+
+    def on_key(self, event) -> None:
+        if event.key == "x":
+            self.app.pop_screen()
+        elif event.key == "q":
+            if isinstance(self.app, VersperTUI):
+                self.app.exit()
+
+
+# ── CSS for popup screens ───────────────────────────────────────────────
+
+POPUP_CSS = """
+QuitScreen, TrainingDoneScreen {
+    align: center middle;
+    background: rgba(0,0,0,0.7);
+}
+
+#quit-dialog, #done-dialog {
+    width: 50;
+    height: auto;
+    border: solid #e2b714;
+    background: #1a1a2e;
+    padding: 1 2;
+}
+
+#quit-text, #done-text {
+    color: #a0b0c0;
+}
+"""
+
+
 # ── Main App ─────────────────────────────────────────────────────────────
 
 class VersperTUI(App):
     """VersperOmni Terminal UI for training and inference."""
 
-    CSS = TUI_CSS
+    CSS = TUI_CSS + POPUP_CSS
     TITLE = "VersperOmni TUI"
 
     BINDINGS = [
-        Binding("q", "quit", "Quit"),
+        Binding("q", "quit_or_popup", "Quit"),
         Binding("h", "show_help", "Help"),
         Binding("ctrl+i", "tab_inference", "Inference"),
         Binding("ctrl+t", "tab_training", "Training"),
         Binding("ctrl+l", "tab_logs", "Logs"),
+        Binding("ctrl+g", "generate", "Generate", show=False),
+        Binding("ctrl+c", "clear_output", "Clear", show=False),
+        Binding("ctrl+s", "toggle_training", "Start/Stop", show=False),
     ]
 
     model_loaded = reactive(False)
@@ -289,8 +493,23 @@ class VersperTUI(App):
         self._tokenizer = None
         self._train_process: Optional[subprocess.Popen] = None
         self._train_thread: Optional[threading.Thread] = None
-        self._metrics_history: list[dict] = []
         self._log_lines: list[str] = []
+
+        # Training metric tracking
+        self._loss_history: list[float] = []
+        self._lr_history: list[float] = []
+        self._epoch = 0
+        self._total_epochs = 0
+        self._step = 0
+        self._total_steps = 0
+        self._current_lr = 0.0
+        self._current_loss = 0.0
+        self._eta_estimator = ETAEstimator()
+        self._train_start_time: Optional[float] = None
+
+        # Last progress bar values (for rendering in custom widgets)
+        self._epoch_progress = 0.0
+        self._batch_progress = 0.0
 
     # ── Compose ──────────────────────────────────────────────────────
 
@@ -368,83 +587,105 @@ class VersperTUI(App):
     def _build_training_tab(self) -> Container:
         return Container(
             Vertical(
-                # Training config
-                Container(
-                    Label("Training Configuration", classes="title"),
-                    Horizontal(
-                        Vertical(
-                            Label("Training Mode"),
-                            Select(
-                                [
-                                    ("Pretrain (LM)", "pretrain"),
-                                    ("SFT-VLM", "sft_vlm"),
-                                    ("SFT-Omni", "sft_omni"),
-                                ],
-                                prompt="Select mode...",
-                                id="train-mode",
-                                value="pretrain",
-                            ),
+                # Config section (collapsible-like at top)
+                self._train_config_section(),
+                # Main split area: left panel + right panel
+                Horizontal(
+                    # Left panel: Controls + Status + Text Metrics
+                    ScrollableContainer(
+                        Static(id="train-controls-text"),
+                        Static(id="train-status-text"),
+                        RichLog(
+                            id="train-metrics-text",
+                            highlight=True,
+                            markup=True,
+                            wrap=True,
                         ),
-                        Vertical(
-                            Label("Data path"),
-                            Input(placeholder="../dataset/data.jsonl", id="train-data-path"),
-                        ),
-                        Vertical(
-                            Label("Model type"),
-                            Select(
-                                [(k, k) for k in MODEL_TYPES],
-                                prompt="Select...",
-                                id="train-model-type",
-                                value="LM (MiniMind)",
-                            ),
-                        ),
+                        id="train-left-panel",
                     ),
-                    Horizontal(
-                        Label("Weight path:"),
-                        Input(placeholder="./out/pretrain.pth", id="train-weight-path"),
-                    ),
-                    Horizontal(
-                        Label("Device:"),
-                        Select(
-                            [(d, d) for d in DEVICE_CHOICES],
-                            id="train-device",
-                            value="auto",
+                    # Right panel: Loss chart
+                    ScrollableContainer(
+                        BrailleLineChart(
+                            id="train-loss-chart",
+                            title="Training Loss",
+                            height_chars=8,
+                            color="#e2b714",
                         ),
-                        Label("Batch size:"),
-                        Input(value="32", id="train-batch-size", type="integer"),
-                        Label("Learning rate:"),
-                        Input(value="5e-4", id="train-lr"),
+                        id="train-right-panel",
                     ),
-                    id="train-config-box",
+                    id="train-main-area",
                 ),
-                # Progress section
+                # Bottom: dual progress bars with ETA
                 Container(
                     Label("Progress", classes="title"),
                     Horizontal(
-                        Static("Epoch:", classes="metric-row"),
+                        Static("Epoch:", classes="progress-row"),
                         ProgressBar(total=100, id="train-epoch-progress", show_eta=False),
+                        Static(id="train-eta-label"),
                     ),
                     Horizontal(
-                        Static("Batch:", classes="metric-row"),
+                        Static("Batch:", classes="progress-row"),
                         ProgressBar(total=100, id="train-batch-progress", show_eta=False),
                     ),
-                    id="train-progress-box",
-                ),
-                # Metrics section
-                Container(
-                    Label("Metrics", classes="title"),
-                    RichLog(id="train-metrics", highlight=True, markup=True, wrap=True),
-                    id="train-metrics-box",
-                ),
-                # Controls
-                Horizontal(
-                    Button("▶ Start Training", variant="success", id="btn-train-start"),
-                    Button("⏹ Stop", variant="error", id="btn-train-stop"),
-                    Button("Clear Metrics", id="btn-train-clear"),
-                    id="train-controls",
+                    id="train-progress-panel",
                 ),
                 id="train-layout",
             ),
+        )
+
+    def _train_config_section(self) -> Container:
+        return Container(
+            Label("Training Configuration", classes="title"),
+            Horizontal(
+                Vertical(
+                    Label("Training Mode"),
+                    Select(
+                        [
+                            ("Pretrain (LM)", "pretrain"),
+                            ("SFT-VLM", "sft_vlm"),
+                            ("SFT-Omni", "sft_omni"),
+                        ],
+                        prompt="Select mode...",
+                        id="train-mode",
+                        value="pretrain",
+                    ),
+                ),
+                Vertical(
+                    Label("Data path"),
+                    Input(placeholder="../dataset/data.jsonl", id="train-data-path"),
+                ),
+                Vertical(
+                    Label("Model type"),
+                    Select(
+                        [(k, k) for k in MODEL_TYPES],
+                        prompt="Select...",
+                        id="train-model-type",
+                        value="LM (MiniMind)",
+                    ),
+                ),
+            ),
+            Horizontal(
+                Label("Weight path:"),
+                Input(placeholder="./out/pretrain.pth", id="train-weight-path"),
+            ),
+            Horizontal(
+                Label("Device:"),
+                Select(
+                    [(d, d) for d in DEVICE_CHOICES],
+                    id="train-device",
+                    value="auto",
+                ),
+                Label("Batch size:"),
+                Input(value="32", id="train-batch-size", type="integer"),
+                Label("Learning rate:"),
+                Input(value="5e-4", id="train-lr"),
+            ),
+            Horizontal(
+                Button("▶ Start Training", variant="success", id="btn-train-start"),
+                Button("⏹ Stop", variant="error", id="btn-train-stop"),
+                Button("Clear Metrics", id="btn-train-clear"),
+            ),
+            id="train-config-box",
         )
 
     def _build_logs_tab(self) -> Container:
@@ -462,6 +703,13 @@ class VersperTUI(App):
 
     def action_show_help(self) -> None:
         self.push_screen(HelpScreen())
+
+    def action_quit_or_popup(self) -> None:
+        """If training is running, show quit confirmation; otherwise exit."""
+        if self.training_running:
+            self.push_screen(QuitScreen())
+        else:
+            self.exit()
 
     def action_tab_inference(self) -> None:
         try:
@@ -484,6 +732,38 @@ class VersperTUI(App):
         except NoMatches:
             pass
 
+    def action_generate(self) -> None:
+        """Ctrl+G shortcut for generate in inference tab."""
+        try:
+            prompt = self.query_one("#infer-input").text
+            stream = self.query_one("#infer-stream").value
+            self.run_inference(prompt, stream)
+        except NoMatches:
+            pass
+
+    def action_clear_output(self) -> None:
+        """Ctrl+C shortcut for clearing inference output."""
+        try:
+            self.query_one("#infer-output").clear()
+            self.query_one("#infer-input").text = ""
+        except NoMatches:
+            pass
+
+    def action_toggle_training(self) -> None:
+        """Ctrl+S shortcut for start/stop training."""
+        try:
+            if self.training_running:
+                self.training_running = False
+                if self._train_process:
+                    self._train_process.kill()
+                self.post_message(LogMessage("Training stopped by shortcut"))
+            else:
+                # Find and press start button
+                btn = self.query_one("#btn-train-start")
+                self._trigger_train_start()
+        except NoMatches:
+            pass
+
     # ── Model Loading ────────────────────────────────────────────────
 
     def _get_device(self, device_key: str) -> str:
@@ -501,15 +781,12 @@ class VersperTUI(App):
             model_cls = model_info["model"]
             device = self._get_device(device_key)
 
-            # Create config
             cfg = config_cls()
             self._config = cfg
 
-            # Create model
             extras = model_info["extras"].copy()
             self._model = model_cls(cfg, **extras)
 
-            # Load weights if path provided
             if weight_path and os.path.exists(weight_path):
                 state = torch.load(weight_path, map_location="cpu")
                 self._model.load_state_dict(state, strict=False)
@@ -546,7 +823,7 @@ class VersperTUI(App):
 
     @work(thread=True)
     def run_inference(self, prompt: str, stream: bool) -> None:
-        """Run model inference in background."""
+        """Run model inference in background thread."""
         if self._model is None:
             self.post_message(LogMessage("No model loaded!", "error"))
             self.post_message(InferenceResult("No model loaded. Please load a model first."))
@@ -557,7 +834,6 @@ class VersperTUI(App):
             model = self._model
 
             if self.current_model_type == "LM (MiniMind)":
-                # LM inference
                 from transformers import AutoTokenizer
                 tok_path = self.query_one("#infer-weight-path").value or "./model"
                 if self._tokenizer is None:
@@ -588,8 +864,6 @@ class VersperTUI(App):
                 self.post_message(InferenceResult(response))
 
             elif self.current_model_type == "VLM (MiniMind-V)":
-                # VLM inference - check if prompt has image path
-                import re
                 img_match = re.search(r'!\[.*?\]\((.+?)\)', prompt)
                 if img_match:
                     from PIL import Image
@@ -613,7 +887,6 @@ class VersperTUI(App):
                         out[0][input_ids.shape[1]:], skip_special_tokens=True
                     )
                 else:
-                    # Text-only VLM
                     inputs = model.processor(text=prompt, return_tensors="pt")
                     device = next(model.parameters()).device
                     input_ids = inputs["input_ids"].to(device)
@@ -626,7 +899,6 @@ class VersperTUI(App):
                 self.post_message(InferenceResult(response))
 
             elif self.current_model_type == "Omni (MiniMind-O)":
-                # Omni text-to-speech inference (text output only in TUI)
                 from transformers import AutoTokenizer
                 tok_path = self.query_one("#infer-weight-path").value or "./model"
                 if self._tokenizer is None:
@@ -636,7 +908,6 @@ class VersperTUI(App):
                         self.post_message(InferenceResult(
                             "Tokenizer not found. Text generation only."
                         ))
-                        # Use a simple tokenization
                         input_ids = torch.randint(0, 100, (1, 8))
                         device = next(model.parameters()).device
                         input_ids = input_ids.to(device)
@@ -682,9 +953,18 @@ class VersperTUI(App):
                      weight_path: str, device: str, batch_size: int, lr: float) -> None:
         """Launch training as subprocess and monitor output."""
         self.training_running = True
+        self._train_start_time = time.time()
+        self._eta_estimator.start()
+
+        # Reset metric tracking
+        self._loss_history.clear()
+        self._lr_history.clear()
+        self._epoch = 0
+        self._total_epochs = 0
+        self._step = 0
+        self._total_steps = 0
 
         try:
-            # Build command
             cmd = [
                 sys.executable, "-m", f"versper.trainer.{mode}",
                 "--data_path", data_path,
@@ -717,39 +997,84 @@ class VersperTUI(App):
 
                 self.post_message(LogMessage(line, "train"))
 
-                # Parse metrics from log lines like:
-                # "Epoch:[1/2](100/1000), loss: 3.2456, lr: 0.00050, eta: 45.0min"
+                # Parse metrics from log lines
                 if "loss:" in line and "Epoch:" in line:
-                    try:
-                        import re
-                        ep = re.search(r'Epoch:\[(\d+)/(\d+)\]', line)
-                        step = re.search(r'\((\d+)/(\d+)\)', line)
-                        loss = re.search(r'loss: ([\d.]+)', line)
-                        lr_m = re.search(r'lr: ([\d.]+)', line)
-
-                        if ep:
-                            self.post_message(TrainProgress(
-                                epoch=int(ep.group(1)),
-                                total_epochs=int(ep.group(2)),
-                            ))
-                        if step and loss:
-                            self.post_message(TrainMetric(
-                                loss=float(loss.group(1)),
-                                step=int(step.group(1)),
-                                total_steps=int(step.group(2)),
-                                lr=float(lr_m.group(1)) if lr_m else 0,
-                            ))
-                    except (ValueError, AttributeError):
-                        pass
+                    self._parse_train_metrics(line)
 
             self._train_process.wait()
             self.post_message(LogMessage(f"Training exited with code {self._train_process.returncode}"))
+            self.post_message(TrainingDone())
 
         except Exception as e:
             self.post_message(LogMessage(f"Training error: {e}", "error"))
         finally:
             self.training_running = False
             self._train_process = None
+
+    def _parse_train_metrics(self, line: str) -> None:
+        """Parse training metric values from a log line."""
+        try:
+            ep = re.search(r'Epoch:\[(\d+)/(\d+)\]', line)
+            step = re.search(r'\((\d+)/(\d+)\)', line)
+            loss = re.search(r'loss: ([\d.]+)', line)
+            lr_m = re.search(r'lr: ([\d.]+)', line)
+
+            if ep:
+                self._epoch = int(ep.group(1))
+                self._total_epochs = int(ep.group(2))
+                self.post_message(TrainProgress(
+                    epoch=self._epoch,
+                    total_epochs=self._total_epochs,
+                ))
+
+            if step and loss:
+                step_num = int(step.group(1))
+                total_steps = int(step.group(2))
+                loss_val = float(loss.group(1))
+                lr_val = float(lr_m.group(1)) if lr_m else 0.0
+
+                self._step = step_num
+                self._total_steps = total_steps
+                self._current_loss = loss_val
+                self._current_lr = lr_val
+                self._loss_history.append(loss_val)
+                self._lr_history.append(lr_val)
+
+                # Cumulative step across epochs
+                cum_step = (self._epoch - 1) * total_steps + step_num
+                self._eta_estimator.update(cum_step)
+
+                self.post_message(TrainMetric(
+                    loss=loss_val,
+                    step=step_num,
+                    total_steps=total_steps,
+                    lr=lr_val,
+                    epoch=self._epoch,
+                    total_epochs=self._total_epochs,
+                ))
+
+                # Update loss chart
+                self.post_message(LossPoint(loss_val, lr_val))
+        except (ValueError, AttributeError):
+            pass
+
+    def _trigger_train_start(self) -> None:
+        """Collect training config and launch."""
+        mode = self.query_one("#train-mode").value
+        data_path = self.query_one("#train-data-path").value.strip()
+        model_type = self.query_one("#train-model-type").value
+        weight_path = self.query_one("#train-weight-path").value.strip()
+        device = self.query_one("#train-device").value
+        try:
+            batch_size = int(self.query_one("#train-batch-size").value)
+        except ValueError:
+            batch_size = 32
+        try:
+            lr = float(self.query_one("#train-lr").value)
+        except ValueError:
+            lr = 5e-4
+
+        self.run_training(mode, data_path, model_type, weight_path, device, batch_size, lr)
 
     # ── Message Handling ─────────────────────────────────────────────
 
@@ -764,17 +1089,16 @@ class VersperTUI(App):
         log_line = f"{prefix} {msg.text}"
         self._log_lines.append(log_line)
 
-        # Update log widget
         try:
             log_area = self.query_one("#log-area")
             log_area.write(log_line + "\n")
         except NoMatches:
             pass
 
-        # Also write to train metrics if relevant
+        # Write to train metrics text area as well
         if msg.level == "train":
             try:
-                tm = self.query_one("#train-metrics")
+                tm = self.query_one("#train-metrics-text")
                 tm.write(log_line + "\n")
             except NoMatches:
                 pass
@@ -789,17 +1113,45 @@ class VersperTUI(App):
             pass
 
     def on_train_metric(self, msg: "TrainMetric") -> None:
-        """Handle training metrics update."""
+        """Handle training metrics update — progress bars + status panel."""
         try:
             # Update progress bars
             epoch_bar = self.query_one("#train-epoch-progress")
             batch_bar = self.query_one("#train-batch-progress")
 
             if msg.total_epochs:
-                epoch_bar.update(progress=(msg.epoch / msg.total_epochs) * 100)
+                epoch_progress = (msg.epoch / msg.total_epochs) * 100
+                epoch_bar.update(progress=epoch_progress)
+                self._epoch_progress = epoch_progress
 
             if msg.total_steps:
-                batch_bar.update(progress=(msg.step / msg.total_steps) * 100)
+                batch_progress = (msg.step / msg.total_steps) * 100
+                batch_bar.update(progress=batch_progress)
+                self._batch_progress = batch_progress
+
+            # Update status panel
+            self._update_status_panel(msg)
+
+            # Update ETA label
+            try:
+                eta = self.query_one("#train-eta-label")
+                remaining_epochs = msg.total_epochs - msg.epoch
+                remaining_steps = remaining_epochs * msg.total_steps + (msg.total_steps - msg.step)
+                eta_str = self._eta_estimator.eta_str_for(remaining_steps)
+                eta.update(f" ETA: {eta_str}")
+            except NoMatches:
+                pass
+
+        except NoMatches:
+            pass
+
+    def _update_status_panel(self, msg: "TrainMetric") -> None:
+        """Refresh the status/controls/metrics text in the left panel."""
+        try:
+            status = self.query_one("#train-status-text")
+            t = RichText()
+            t.append(" Status", style=RichStyle(color="#e2b714", bold=True))
+            status.update(t)
         except NoMatches:
             pass
 
@@ -807,9 +1159,26 @@ class VersperTUI(App):
         """Handle epoch progress updates."""
         try:
             epoch_bar = self.query_one("#train-epoch-progress")
-            epoch_bar.update(progress=(msg.epoch / msg.total_epochs) * 100)
+            if msg.total_epochs:
+                pct = (msg.epoch / msg.total_epochs) * 100
+                epoch_bar.update(progress=pct)
+                self._epoch_progress = pct
         except NoMatches:
             pass
+
+    def on_loss_point(self, msg: "LossPoint") -> None:
+        """Handle new loss data point — update chart."""
+        try:
+            chart = self.query_one("#train-loss-chart")
+            if isinstance(chart, BrailleLineChart):
+                chart.add_series("loss", color="#e2b714")
+                chart.add_point("loss", len(self._loss_history), msg.loss)
+        except NoMatches:
+            pass
+
+    def on_training_done(self, msg: "TrainingDone") -> None:
+        """Handle training completion — show popup."""
+        self.push_screen(TrainingDoneScreen())
 
     # ── Button Handlers ──────────────────────────────────────────────
 
@@ -850,31 +1219,23 @@ class VersperTUI(App):
             if self.training_running:
                 self.post_message(LogMessage("Training already running!", "warning"))
                 return
-            mode = self.query_one("#train-mode").value
-            data_path = self.query_one("#train-data-path").value.strip()
-            model_type = self.query_one("#train-model-type").value
-            weight_path = self.query_one("#train-weight-path").value.strip()
-            device = self.query_one("#train-device").value
-            try:
-                batch_size = int(self.query_one("#train-batch-size").value)
-            except ValueError:
-                batch_size = 32
-            try:
-                lr = float(self.query_one("#train-lr").value)
-            except ValueError:
-                lr = 5e-4
-
-            self.run_training(mode, data_path, model_type, weight_path, device, batch_size, lr)
+            self._trigger_train_start()
 
         elif button_id == "btn-train-stop":
             self.training_running = False
             if self._train_process:
                 self._train_process.kill()
             self.post_message(LogMessage("Training stopped by user"))
+            self.post_message(TrainingDone())
 
         elif button_id == "btn-train-clear":
             try:
-                self.query_one("#train-metrics").clear()
+                self.query_one("#train-metrics-text").clear()
+                self._loss_history.clear()
+                self._lr_history.clear()
+                chart = self.query_one("#train-loss-chart")
+                if isinstance(chart, BrailleLineChart):
+                    chart.clear()
             except NoMatches:
                 pass
 
@@ -904,14 +1265,11 @@ class VersperTUI(App):
 
 # ── Custom Messages ──────────────────────────────────────────────────────
 
-from textual.message import Message
-
-
 class LogMessage(Message):
     def __init__(self, text: str, level: str = "info") -> None:
         super().__init__()
         self.text = text
-        self.level = level  # info, warning, error, train
+        self.level = level
 
 
 class ModelLoaded(Message):
@@ -944,6 +1302,18 @@ class TrainProgress(Message):
         super().__init__()
         self.epoch = epoch
         self.total_epochs = total_epochs
+
+
+class LossPoint(Message):
+    def __init__(self, loss: float, lr: float) -> None:
+        super().__init__()
+        self.loss = loss
+        self.lr = lr
+
+
+class TrainingDone(Message):
+    """Sent when training finishes (success, cancel, or kill)."""
+    pass
 
 
 # ── Entry point ──────────────────────────────────────────────────────────
