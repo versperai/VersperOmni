@@ -1,9 +1,9 @@
 # VersperOmni 开发文档
 
-> 基于 [MiniMind-O Technical Report](https://github.com/jingyaogong/minimind-o) 整理的学习/面试资料
-> 统一代码库位于 `src/versper/`，涵盖 MiniMind（文本 LM）、MiniMind-V（视觉语言模型）、MiniMind-O（全模态模型）
+> 基于 [Versper-O Technical Report](https://github.com/jingyaogong/minimind-o) 整理的学习/面试资料
+> 统一代码库位于 `src/versper/`，涵盖 Versper（文本 LM）、Versper-V（视觉语言模型）、Versper-O（全模态模型）
 
-原 MiniMind-O 技术报告可查阅 [`docs/archive/`](archive/) 目录。
+原 Versper-O 技术报告可查阅 [`docs/archive/`](archive/) 目录。
 
 ---
 
@@ -41,14 +41,14 @@
 ```
 Text ────────────► ┌─────────────────────┐
                     │      Thinker         │────► Text Output
-Audio ─►SenseVoice─┤   (MiniMind 8层)    │
+Audio ─►SenseVoice─┤   (Versper 8层)    │
         (frozen)   │                     │
 Image ─► SigLIP2 ──┤  bridge layer 3     ├────► bridge state
          (frozen)  └─────────┬───────────┘
                              │
                     ┌────────▼───────────┐
                     │       Talker        │
-Codec History ─────►│   (4 MiniMind层)    ├────► Mimi Codes ──► 24kHz Audio
+Codec History ─────►│   (4 Versper层)    ├────► Mimi Codes ──► 24kHz Audio
 Speaker Ref ───────►│  fusion: bridge +   │
                     │  codec history      │
                     └─────────────────────┘
@@ -58,11 +58,11 @@ Speaker Ref ───────►│  fusion: bridge +   │
 
 ```
 src/versper/
-├── __init__.py          # 统一导出 MiniMind / VLM / Omni
-├── config.py            # 配置体系：MiniMindConfig → VLMConfig → OmniConfig
-├── model.py             # MiniMind 基础语言模型 (Thinker)
-├── vlm.py               # MiniMind-V 视觉语言模型扩展
-├── omni.py              # MiniMind-O 全模态模型 (Thinker + Talker)
+├── __init__.py          # 统一导出 Versper / VLM / Omni
+├── config.py            # 配置体系：VersperConfig → VLMConfig → OmniConfig
+├── model.py             # Versper 基础语言模型 (Thinker)
+├── vlm.py               # Versper-V 视觉语言模型扩展
+├── omni.py              # Versper-O 全模态模型 (Thinker + Talker)
 ├── modules/             # 子模块（注意力、归一化等）
 ├── dataset/
 │   ├── lm_dataset.py    # 文本预训练/SFT 数据集
@@ -81,15 +81,15 @@ src/versper/
 
 ```python
 # 文本/LM
-from versper.model import MiniMindForCausalLM
-from versper.config import MiniMindConfig
+from versper.model import VersperForCausalLM
+from versper.config import VersperConfig
 
 # 视觉语言 (VLM)
-from versper.vlm import MiniMindVLM
+from versper.vlm import VersperVLM
 from versper.config import VLMConfig
 
 # 全模态 (Omni)
-from versper.omni import MiniMindOmni
+from versper.omni import VersperOmni
 from versper.config import OmniConfig
 ```
 
@@ -108,6 +108,6 @@ python -m versper.trainer.sft_omni --mode all
 
 ## 关联说明
 
-- 本仓库统一了三个模型变体：**MiniMind**（纯文本）、**MiniMind-V**（文本+图像输入）、**MiniMind-O**（文本+语音+图像输入，语音输出）
-- 配置体系采用继承链：`MiniMindConfig → VLMConfig → OmniConfig`
+- 本仓库统一了三个模型变体：**Versper**（纯文本）、**Versper-V**（文本+图像输入）、**Versper-O**（文本+语音+图像输入，语音输出）
+- 配置体系采用继承链：`VersperConfig → VLMConfig → OmniConfig`
 - 各文档中的代码示例均使用 `src/versper/` 下的新路径，与旧版 `src/model/` 路径不同

@@ -16,7 +16,7 @@ from torch.utils.data import DataLoader, DistributedSampler
 from transformers import AutoTokenizer
 
 from config import VLMConfig
-from models.vlm import MiniMindVLM
+from models.vlm import VersperVLM
 from dataset.vlm_dataset import VLMDataset, vlm_collate_fn
 from trainer.utils import (
     get_lr, Logger, is_main_process, init_distributed_mode, setup_seed,
@@ -137,7 +137,7 @@ if __name__ == "__main__":
             Logger("tensorboard not installed; run: pip install tensorboard")
 
     tokenizer = AutoTokenizer.from_pretrained(args.tokenizer_path)
-    model = MiniMindVLM(vlm_config, vision_model_path=args.vision_path)
+    model = VersperVLM(vlm_config, vision_model_path=args.vision_path)
 
     if args.from_weight != "none":
         wp = f"{args.save_dir}/{args.from_weight}_{args.hidden_size}{'_moe' if vlm_config.use_moe else ''}.pth"

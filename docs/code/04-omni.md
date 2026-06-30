@@ -1,14 +1,14 @@
-# 全模态模型 -- MiniMindOmni (Thinker-Talker 架构)
+# 全模态模型 -- VersperOmni (Thinker-Talker 架构)
 
 ## 架构总览
 
-`MiniMindOmni` (`omni.py:206`) 是 VersperOmni 的全模态模型，采用 **Thinker-Talker** 双模块架构，支持文本、语音、图像多模态输入，以及文本+流式语音输出。
+`VersperOmni` (`omni.py:206`) 是 VersperOmni 的全模态模型，采用 **Thinker-Talker** 双模块架构，支持文本、语音、图像多模态输入，以及文本+流式语音输出。
 
 ```
-MiniMindForCausalLM
-  └── MiniMindOmni
-        ├── thinker (alias of self.model) -- LM 骨干 (8× MiniMindBlock)
-        ├── talker (TalkerModule) -- 语音生成模块 (4× MiniMindBlock)
+VersperForCausalLM
+  └── VersperOmni
+        ├── thinker (alias of self.model) -- LM 骨干 (8× VersperBlock)
+        ├── talker (TalkerModule) -- 语音生成模块 (4× VersperBlock)
         ├── audio_proj (MMAudioProjector) -- 音频特征投影
         ├── vision_proj (MMVisionProjector) -- 视觉特征投影
         ├── audio_encoder (SenseVoice-Small, 冻结)
@@ -59,7 +59,7 @@ MiniMindForCausalLM
 ```python
 class TalkerModule(nn.Module):
     def __init__(self, config):
-        self.layers = [MiniMindBlock × num_talker_hidden_layers]  # 默认 4 层
+        self.layers = [VersperBlock × num_talker_hidden_layers]  # 默认 4 层
         self.norm = RMSNorm(talker_hidden_size)                   # 输出归一化
         self.lm_head = TalkerHead(talker_hidden_size, 2112)       # 8 头 Codec 输出
         self.embed_tokens = TalkerEmbedding(2112, talker_hidden_size)  # 8 头 Codec 输入
@@ -161,7 +161,7 @@ inputs = processor(wav, sampling_rate=16000)
 
 ## 前向传播
 
-`MiniMindOmni.forward` (`omni.py:416`) 是核心方法，处理三种输入模式。
+`VersperOmni.forward` (`omni.py:416`) 是核心方法，处理三种输入模式。
 
 ### 输入格式
 
@@ -261,7 +261,7 @@ def _stream_generate(self, input_ids, ...):
 
 ### `generate()` 的 `**kwargs` 参数
 
-`MiniMindOmni.generate()` 接受以下通过 `**kwargs` 传递的额外参数：
+`VersperOmni.generate()` 接受以下通过 `**kwargs` 传递的额外参数：
 
 | 参数 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|

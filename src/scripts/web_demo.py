@@ -6,13 +6,13 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 import torch
 from transformers import AutoTokenizer
-from config import MiniMindConfig
-from models.llm import MiniMindForCausalLM
+from config import VersperConfig
+from models.llm import VersperForCausalLM
 
 
 def main():
-    config = MiniMindConfig()
-    model = MiniMindForCausalLM(config)
+    config = VersperConfig()
+    model = VersperForCausalLM(config)
     tokenizer = AutoTokenizer.from_pretrained("./model")
 
     # Load weights

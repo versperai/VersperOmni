@@ -8,17 +8,17 @@
 
 ## 1. LM 文本生成
 
-最基本的用法：加载 MiniMind 纯语言模型，给定 prompt 生成文本回复。
+最基本的用法：加载 Versper 纯语言模型，给定 prompt 生成文本回复。
 
 ```python
 import torch
 from transformers import AutoTokenizer
-from versper.config import MiniMindConfig
-from versper.model import MiniMindForCausalLM
+from versper.config import VersperConfig
+from versper.model import VersperForCausalLM
 
 # 初始化模型
-cfg = MiniMindConfig()
-model = MiniMindForCausalLM(cfg).cuda().eval()
+cfg = VersperConfig()
+model = VersperForCausalLM(cfg).cuda().eval()
 tokenizer = AutoTokenizer.from_pretrained("./model")
 
 # 加载预训练权重
@@ -56,17 +56,17 @@ python src/versper/scripts/web_demo.py
 
 ## 2. VLM 图像描述
 
-MiniMind-V 在 LM 基础上增加了 SigLIP2 视觉编码器，支持图像输入。
+Versper-V 在 LM 基础上增加了 SigLIP2 视觉编码器，支持图像输入。
 
 ```python
 import torch
 from PIL import Image
 from versper.config import VLMConfig
-from versper.vlm import MiniMindVLM
+from versper.vlm import VersperVLM
 
 # 初始化模型（指定视觉编码器路径）
 vcfg = VLMConfig()
-model = MiniMindVLM(vcfg, vision_model_path="./model/siglip2-base-p32-256-ve")
+model = VersperVLM(vcfg, vision_model_path="./model/siglip2-base-p32-256-ve")
 model = model.cuda().eval()
 
 # 加载权重
@@ -116,17 +116,17 @@ print(response)
 
 ## 3. Omni 文本转语音 (TTS)
 
-MiniMind-O 采用 Thinker-Talker 架构，可在生成文本的同时**流式输出** Mimi 音频编码。
+Versper-O 采用 Thinker-Talker 架构，可在生成文本的同时**流式输出** Mimi 音频编码。
 
 ```python
 import torch
 from transformers import AutoTokenizer
 from versper.config import OmniConfig
-from versper.omni import MiniMindOmni
+from versper.omni import VersperOmni
 
 # 初始化 Omni 模型
 ocfg = OmniConfig()
-model = MiniMindOmni(
+model = VersperOmni(
     ocfg,
     audio_encoder_path="./model/SenseVoiceSmall",
     vision_model_path="./model/siglip2-base-p32-256-ve",  # 可选
@@ -242,12 +242,12 @@ model.load_state_dict(state_dict, strict=False)
 ### 从 HuggingFace Hub 直接加载（推荐）
 
 ```python
-from versper.config import MiniMindConfig
-from versper.model import MiniMindForCausalLM
+from versper.config import VersperConfig
+from versper.model import VersperForCausalLM
 
 # 直接从 Hub 加载（需要 transformers>=4.50.0）
 # 注意：当前版本尚未上传至 HF Hub，此方式暂不可用
-# model = MiniMindForCausalLM.from_pretrained("jyaogong/minimind")
+# model = VersperForCausalLM.from_pretrained("jyaogong/minimind")
 ```
 
 ---
@@ -304,10 +304,10 @@ cat src/versper/scripts/web_demo.py
 
 三种模型的差异点总结：
 
-| 方面 | MiniMind (LM) | MiniMind-V (VLM) | MiniMind-O (Omni) |
+| 方面 | Versper (LM) | Versper-V (VLM) | Versper-O (Omni) |
 |------|---------------|------------------|--------------------|
-| 配置类 | `MiniMindConfig` | `VLMConfig` | `OmniConfig` |
-| 模型类 | `MiniMindForCausalLM` | `MiniMindVLM` | `MiniMindOmni` |
+| 配置类 | `VersperConfig` | `VLMConfig` | `OmniConfig` |
+| 模型类 | `VersperForCausalLM` | `VersperVLM` | `VersperOmni` |
 | 额外输入 | — | `pixel_values` | `pixel_values`, `audio_inputs`, `spk_emb` |
 | 输出 | 文本 tokens | 文本 tokens | 文本 tokens + 音频 codes |
 | 流式支持 | 否（内置 generate） | 否（内置 generate） | 是（`stream=True`） |

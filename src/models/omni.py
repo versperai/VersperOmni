@@ -1,5 +1,5 @@
 """
-Omni Model (MiniMind-O) — Thinker-Talker architecture with audio+vision+speech I/O.
+Omni Model (Versper-O) — Thinker-Talker architecture with audio+vision+speech I/O.
 """
 import os
 import math
@@ -17,10 +17,10 @@ from transformers.modeling_outputs import MoeCausalLMOutputWithPast
 from transformers import SiglipImageProcessor, SiglipVisionModel
 
 from config import OmniConfig
-from models.llm import MiniMindForCausalLM
+from models.llm import VersperForCausalLM
 from modules.norm import RMSNorm
 from modules.rope import precompute_freqs_cis
-from modules.block import MiniMindBlock
+from modules.block import VersperBlock
 from modules.feed_forward import MOEFeedForward
 
 
@@ -134,7 +134,7 @@ class SenseVoiceAudioProcessor:
 # ═══════════════════════════════════════════════
 
 class TalkerModule(nn.Module):
-    """Independent speech generation module (4 MiniMind blocks + low-rank codec I/O)."""
+    """Independent speech generation module (4 Versper blocks + low-rank codec I/O)."""
 
     def __init__(self, config):
         super().__init__()
@@ -161,7 +161,7 @@ class TalkerModule(nn.Module):
         )
 
         self.layers = nn.ModuleList([
-            MiniMindBlock(l, talker_cfg)
+            VersperBlock(l, talker_cfg)
             for l in range(config.num_talker_hidden_layers)
         ])
         self.norm = RMSNorm(config.talker_hidden_size, eps=config.rms_norm_eps)
@@ -203,7 +203,7 @@ class TalkerModule(nn.Module):
 # Omni model (Thinker + Talker)
 # ═══════════════════════════════════════════════
 
-class MiniMindOmni(MiniMindForCausalLM):
+class VersperOmni(VersperForCausalLM):
     """Full omni model: text + speech + image input, text + streaming speech output."""
 
     config_class = OmniConfig
@@ -242,7 +242,7 @@ class MiniMindOmni(MiniMindForCausalLM):
     @staticmethod
     def _load_sensevoice(path):
         if path is None or not os.path.exists(path):
-            warnings.warn(f"[MiniMindOmni] SenseVoice path not found: {path}")
+            warnings.warn(f"[VersperOmni] SenseVoice path not found: {path}")
             return None, None
         logging.getLogger().setLevel(logging.ERROR)
         from transformers import logging as hf_logging
@@ -265,7 +265,7 @@ class MiniMindOmni(MiniMindForCausalLM):
     @staticmethod
     def _load_vision(path):
         if path is None or not os.path.exists(path):
-            warnings.warn(f"[MiniMindOmni] Vision path not found: {path}")
+            warnings.warn(f"[VersperOmni] Vision path not found: {path}")
             return None, None
         from transformers import logging as hf_logging
 

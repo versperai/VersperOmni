@@ -1,12 +1,12 @@
 """
 Unified config for all VersperOmni variants.
-Hierarchy: MiniMindConfig (text-only) → VLMConfig (+vision) → OmniConfig (+audio+talker)
+Hierarchy: VersperConfig (text-only) → VLMConfig (+vision) → OmniConfig (+audio+talker)
 """
 import math
 from transformers import PretrainedConfig
 
 
-class MiniMindConfig(PretrainedConfig):
+class VersperConfig(PretrainedConfig):
     model_type = "versper"
 
     def __init__(self, hidden_size=768, num_hidden_layers=8, use_moe=False, **kwargs):
@@ -52,7 +52,7 @@ class MiniMindConfig(PretrainedConfig):
         self.router_aux_loss_coef = kwargs.get("router_aux_loss_coef", 5e-4)
 
 
-class VLMConfig(MiniMindConfig):
+class VLMConfig(VersperConfig):
     model_type = "versper-v"
 
     def __init__(self, **kwargs):

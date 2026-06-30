@@ -1,5 +1,5 @@
 """
-MiniMind base language model — shared backbone for all VersperOmni variants.
+Versper base language model — shared backbone for all VersperOmni variants.
 """
 import torch
 import torch.nn.functional as F
@@ -7,17 +7,17 @@ from torch import nn
 from transformers import PreTrainedModel, GenerationMixin
 from transformers.modeling_outputs import MoeCausalLMOutputWithPast
 
-from config import MiniMindConfig
+from config import VersperConfig
 from modules.norm import RMSNorm
 from modules.rope import precompute_freqs_cis
-from modules.block import MiniMindBlock
+from modules.block import VersperBlock
 from modules.feed_forward import MOEFeedForward
 
 
-class MiniMindModel(nn.Module):
+class VersperModel(nn.Module):
     """The core transformer backbone (no LM head)."""
 
-    def __init__(self, config: MiniMindConfig):
+    def __init__(self, config: VersperConfig):
         super().__init__()
         self.config = config
         self.vocab_size = config.vocab_size
@@ -25,7 +25,7 @@ class MiniMindModel(nn.Module):
         self.embed_tokens = nn.Embedding(config.vocab_size, config.hidden_size)
         self.dropout = nn.Dropout(config.dropout)
         self.layers = nn.ModuleList(
-            [MiniMindBlock(l, config) for l in range(self.num_hidden_layers)]
+            [VersperBlock(l, config) for l in range(self.num_hidden_layers)]
         )
         self.norm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
         freqs_cos, freqs_sin = precompute_freqs_cis(
@@ -88,16 +88,16 @@ class MiniMindModel(nn.Module):
         return hidden_states, presents, aux_loss
 
 
-class MiniMindForCausalLM(PreTrainedModel, GenerationMixin):
-    """MiniMind language model with causal LM head."""
+class VersperForCausalLM(PreTrainedModel, GenerationMixin):
+    """Versper language model with causal LM head."""
 
-    config_class = MiniMindConfig
+    config_class = VersperConfig
     _tied_weights_keys = {"lm_head.weight": "model.embed_tokens.weight"}
 
-    def __init__(self, config: MiniMindConfig = None):
-        self.config = config or MiniMindConfig()
+    def __init__(self, config: VersperConfig = None):
+        self.config = config or VersperConfig()
         super().__init__(self.config)
-        self.model = MiniMindModel(self.config)
+        self.model = VersperModel(self.config)
         self.lm_head = nn.Linear(
             self.config.hidden_size, self.config.vocab_size, bias=False
         )

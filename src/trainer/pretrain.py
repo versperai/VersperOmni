@@ -1,5 +1,5 @@
 """
-MiniMind LM pretraining script.
+Versper LM pretraining script.
 
 Usage:
     torchrun --nproc_per_node 4 -m versper.trainer.pretrain \\
@@ -21,8 +21,8 @@ from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data import DataLoader, DistributedSampler
 from transformers import AutoTokenizer
 
-from config import MiniMindConfig
-from models.llm import MiniMindForCausalLM
+from config import VersperConfig
+from models.llm import VersperForCausalLM
 from dataset.lm_dataset import PretrainDataset
 from trainer.utils import (
     get_lr, Logger, is_main_process, init_distributed_mode, setup_seed,
@@ -112,7 +112,7 @@ if __name__ == "__main__":
     setup_seed(42 + (dist.get_rank() if dist.is_initialized() else 0))
     os.makedirs(args.save_dir, exist_ok=True)
 
-    lm_config = MiniMindConfig(hidden_size=args.hidden_size,
+    lm_config = VersperConfig(hidden_size=args.hidden_size,
                                num_hidden_layers=args.num_hidden_layers,
                                use_moe=bool(args.use_moe))
     ckp_data = load_checkpoint(lm_config, args.save_weight, args.save_dir) if args.from_resume else None
@@ -138,7 +138,7 @@ if __name__ == "__main__":
             Logger("tensorboard not installed; run: pip install tensorboard")
 
     tokenizer = AutoTokenizer.from_pretrained(args.tokenizer_path)
-    model = MiniMindForCausalLM(lm_config)
+    model = VersperForCausalLM(lm_config)
     if args.from_weight != "none":
         wp = f"{args.save_dir}/{args.from_weight}_{args.hidden_size}{'_moe' if lm_config.use_moe else ''}.pth"
         if os.path.exists(wp):

@@ -27,7 +27,7 @@ from torch.utils.data import DataLoader, DistributedSampler
 from transformers import AutoTokenizer
 
 from config import OmniConfig
-from models.omni import MiniMindOmni
+from models.omni import VersperOmni
 from dataset.omni_dataset import OmniDataset, omni_collate_fn
 from trainer.utils import (
     get_lr, Logger, is_main_process, init_distributed_mode, setup_seed,
@@ -191,7 +191,7 @@ if __name__ == "__main__":
             Logger("tensorboard not installed; run: pip install tensorboard")
 
     tokenizer = AutoTokenizer.from_pretrained(args.tokenizer_path)
-    model = MiniMindOmni(omni_config, audio_encoder_path=args.audio_encoder_dir,
+    model = VersperOmni(omni_config, audio_encoder_path=args.audio_encoder_dir,
                          vision_model_path=args.vision_dir)
 
     if args.from_weight != "none":

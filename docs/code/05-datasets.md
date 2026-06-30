@@ -159,7 +159,7 @@ def __getitem__(self, index):
     
     # 5. 加载图片
     image_inputs = [
-        MiniMindVLM.image2tensor(Image.open(io.BytesIO(img)), processor)
+        VersperVLM.image2tensor(Image.open(io.BytesIO(img)), processor)
         for img in image_bytes
     ]
     

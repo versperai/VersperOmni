@@ -18,7 +18,7 @@
 ## 2. Thinker（思考器）架构
 
 ```
-                    Thinker — MiniMind Transformer
+                    Thinker — Versper Transformer
                     ┌───────────────────────────────────────┐
                     │  Embedding (vocab 6400 → 768)        │
                     │         ↓                            │
@@ -69,13 +69,13 @@
                     │  │  + codec_proj(emb) × β     │       │
                     │  └─────────────────────────────┘       │
                     │         ↓                            │
-                    │  Block 0: MiniMind Attention + FFN     │
+                    │  Block 0: Versper Attention + FFN     │
                     │         ↓                            │
-                    │  Block 1: MiniMind Attention + FFN     │
+                    │  Block 1: Versper Attention + FFN     │
                     │         ↓                            │
-                    │  Block 2: MiniMind Attention + FFN     │
+                    │  Block 2: Versper Attention + FFN     │
                     │         ↓                            │
-                    │  Block 3: MiniMind Attention + FFN     │
+                    │  Block 3: Versper Attention + FFN     │
                     │         ↓                            │
                     │  RMSNorm                              │
                     │         ↓                            │
@@ -86,7 +86,7 @@
 ```
 
 ### Talker 配置
-- **层数**: 4（MiniMind blocks，从 Thinker 最后 4 层初始化）
+- **层数**: 4（Versper blocks，从 Thinker 最后 4 层初始化）
 - **Hidden size**: 768（ablated: 512/384 退化明显）
 - **音频词表**: 2112（Mimi codec vocab 2048 + special tokens）
 - **Codebook heads**: 8
@@ -116,7 +116,7 @@
 ## 4. 桥接机制 (Bridge)
 
 ### 桥接层选择
-MiniMind-O 使用 `num_hidden_layers // 2 - 1 = 3`（第 3 层，从 0 开始索引）。
+Versper-O 使用 `num_hidden_layers // 2 - 1 = 3`（第 3 层，从 0 开始索引）。
 
 选择依据：
 ```
@@ -154,8 +154,8 @@ talker_input = bridge_proj * text_scale + codec_emb * audio_scale
 - **初始化知识**：Talker 可以从 Thinker 拷贝初始化（inductive bias 共享）
 - **流式可行**：Thinker 先做完语义 prefill，Talker 再逐帧生成音频
 
-### 问：Model Soufflé（model merging）和 MiniMind-O 的 Thinker-Talker 初始化有什么关系？
-Talker 初始化是从 Thinker 最后 4 层拷贝权重（当 hidden size 匹配时）。这利用了 MiniMind 语言模型预训练获得的 Transformer 表示，使 Talker 不需要从零学习语义理解，只需在此基础上学习音频生成特有的模式。
+### 问：Model Soufflé（model merging）和 Versper-O 的 Thinker-Talker 初始化有什么关系？
+Talker 初始化是从 Thinker 最后 4 层拷贝权重（当 hidden size 匹配时）。这利用了 Versper 语言模型预训练获得的 Transformer 表示，使 Talker 不需要从零学习语义理解，只需在此基础上学习音频生成特有的模式。
 
 ### 问：低秩接口为什么有效？
 8 个 codebook 共享大量统计信息（都建模同一段音频的不同量化残差），共享底座可以让它们共享这些统计信息，而低秩 adapter 只学习 codebook 特有的偏移。这是一种典型的**参数高效微调（PEFT）**思路在架构层面的应用。

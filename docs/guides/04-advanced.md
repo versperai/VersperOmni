@@ -6,12 +6,12 @@
 
 ## 1. Omni Generate 参数
 
-`MiniMindOmni.generate()` 接受可选的 `**kwargs`，用于控制语音生成的行为：
+`VersperOmni.generate()` 接受可选的 `**kwargs`，用于控制语音生成的行为：
 
 ```python
-from versper.omni import MiniMindOmni
+from versper.omni import VersperOmni
 
-model = MiniMindOmni(config)
+model = VersperOmni(config)
 
 output = model.generate(
     input_ids,
@@ -157,14 +157,14 @@ if self.speech_samples >= self.min_speech and not self.speaking:
 
 ---
 
-## 4. MiniMindForCausalLM.generate() return_kv
+## 4. VersperForCausalLM.generate() return_kv
 
-基础语言模型 `MiniMindForCausalLM` 的 `generate()` 支持通过 `return_kv=True` 返回 KV Cache，用于高效的多次续写（例如交互式译码、多轮对话的 prefix caching）。
+基础语言模型 `VersperForCausalLM` 的 `generate()` 支持通过 `return_kv=True` 返回 KV Cache，用于高效的多次续写（例如交互式译码、多轮对话的 prefix caching）。
 
 ```python
-from versper.model import MiniMindForCausalLM
+from versper.model import VersperForCausalLM
 
-model = MiniMindForCausalLM(config).cuda().eval()
+model = VersperForCausalLM(config).cuda().eval()
 
 # 第一次生成，同时返回 KV Cache
 result = model.generate(input_ids, return_kv=True)
@@ -198,7 +198,7 @@ for _ in range(max_new_tokens):
 ```python
 from versper.trainer.utils import load_weight_path
 
-config = MiniMindConfig(use_moe=True)
+config = VersperConfig(use_moe=True)
 
 # 返回: "./out/full_768_moe.pth"
 path = load_weight_path(config, weight_name="full", save_dir="./out")

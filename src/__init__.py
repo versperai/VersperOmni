@@ -1,11 +1,11 @@
-from .config import MiniMindConfig, VLMConfig, OmniConfig
-from .models.llm import MiniMindForCausalLM
-from .models.vlm import MiniMindVLM
-from .models.omni import MiniMindOmni
+from .config import VersperConfig, VLMConfig, OmniConfig
+from .models.llm import VersperForCausalLM
+from .models.vlm import VersperVLM
+from .models.omni import VersperOmni
 
 __all__ = [
-    "MiniMindConfig", "VLMConfig", "OmniConfig",
-    "MiniMindForCausalLM",
-    "MiniMindVLM",
-    "MiniMindOmni",
+    "VersperConfig", "VLMConfig", "OmniConfig",
+    "VersperForCausalLM",
+    "VersperVLM",
+    "VersperOmni",
 ]

@@ -6,7 +6,7 @@
 
 | 脚本 | 文件 | 模型 | 配置类 |
 |------|------|------|--------|
-| `pretrain.py` | `trainer/pretrain.py` | LM 预训练 | `MiniMindConfig` |
+| `pretrain.py` | `trainer/pretrain.py` | LM 预训练 | `VersperConfig` |
 | `sft_vlm.py` | `trainer/sft_vlm.py` | VLM 微调 | `VLMConfig` |
 | `sft_omni.py` | `trainer/sft_omni.py` | Omni 微调 | `OmniConfig` |
 
@@ -122,8 +122,8 @@ torchrun --nproc_per_node 4 -m versper.trainer.pretrain \
 local_rank = init_distributed_mode()
 
 # 2. 创建配置和模型
-lm_config = MiniMindConfig(hidden_size=args.hidden_size, ...)
-model = MiniMindForCausalLM(lm_config)
+lm_config = VersperConfig(hidden_size=args.hidden_size, ...)
+model = VersperForCausalLM(lm_config)
 
 # 3. 加载权重 (可选)
 if args.from_weight != "none":

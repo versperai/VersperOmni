@@ -5,7 +5,7 @@ from .attention import Attention
 from .feed_forward import FeedForward, MOEFeedForward
 
 
-class MiniMindBlock(nn.Module):
+class VersperBlock(nn.Module):
     def __init__(self, layer_id: int, config):
         super().__init__()
         self.self_attn = Attention(config)

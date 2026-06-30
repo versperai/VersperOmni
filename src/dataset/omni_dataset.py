@@ -1,6 +1,6 @@
 """
 Dataset for Omni Model training (T2A / A2A / I2T).
-Consolidated from minimind-o/dataset/omni_dataset.py
+Consolidated from VersperOmni dataset
 """
 import os
 import json

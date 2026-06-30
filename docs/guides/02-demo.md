@@ -22,11 +22,11 @@ python -m versper.scripts.web_demo
 ```python
 import torch
 from transformers import AutoTokenizer
-from versper.config import MiniMindConfig
-from versper.model import MiniMindForCausalLM
+from versper.config import VersperConfig
+from versper.model import VersperForCausalLM
 
-config = MiniMindConfig()
-model = MiniMindForCausalLM(config)
+config = VersperConfig()
+model = VersperForCausalLM(config)
 tokenizer = AutoTokenizer.from_pretrained("./model")
 
 # 加载预训练权重
@@ -77,10 +77,10 @@ gr.ChatInterface(chat, title="VersperOmni Chat").launch()
 
 ### 3.2 添加流式输出
 
-利用 `MiniMindForCausalLM.generate()` 的 `streamer` 参数，或直接使用逐 token 生成循环：
+利用 `VersperForCausalLM.generate()` 的 `streamer` 参数，或直接使用逐 token 生成循环：
 
 ```python
-from versper.model import MiniMindForCausalLM
+from versper.model import VersperForCausalLM
 
 # ... 加载模型 ...
 
@@ -91,12 +91,12 @@ for token_id in model.generate(input_ids, max_new_tokens=256, stream=True):
 
 ### 3.3 添加音频 I/O（Omni 模型）
 
-使用 `MiniMindOmni.generate()` 时，流式生成的每次迭代会返回 `(tokens, audio_frame)` 二元组，其中 `audio_frame` 为 8 通道 Mimi 编码，可通过内置或外部 Neural Codec 解码为波形：
+使用 `VersperOmni.generate()` 时，流式生成的每次迭代会返回 `(tokens, audio_frame)` 二元组，其中 `audio_frame` 为 8 通道 Mimi 编码，可通过内置或外部 Neural Codec 解码为波形：
 
 ```python
-from versper.omni import MiniMindOmni
+from versper.omni import VersperOmni
 
-model = MiniMindOmni(config)
+model = VersperOmni(config)
 
 for tokens, audio_frame in model.generate(input_ids, stream=True, return_audio_codes=True):
     if audio_frame is not None:

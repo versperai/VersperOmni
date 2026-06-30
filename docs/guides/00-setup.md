@@ -1,6 +1,6 @@
 # 环境搭建与安装指南
 
-> 本文将指导您完成 VersperOmni 的本地开发/推理环境搭建，涵盖 MiniMind（文本 LM）、MiniMind-V（视觉语言模型）和 MiniMind-O（全模态模型）的安装与验证。
+> 本文将指导您完成 VersperOmni 的本地开发/推理环境搭建，涵盖 Versper（文本 LM）、Versper-V（视觉语言模型）和 Versper-O（全模态模型）的安装与验证。
 
 ---
 
@@ -68,11 +68,11 @@ pip install -e ".[all]"
 创建 Python 脚本或直接在交互式环境中运行以下代码，确认模型可正常实例化：
 
 ```python
-from versper.config import MiniMindConfig
-from versper.model import MiniMindForCausalLM
+from versper.config import VersperConfig
+from versper.model import VersperForCausalLM
 
-cfg = MiniMindConfig()
-model = MiniMindForCausalLM(cfg)
+cfg = VersperConfig()
+model = VersperForCausalLM(cfg)
 print(f"Model created: {sum(p.numel() for p in model.parameters())/1e6:.2f}M params")
 ```
 
@@ -86,17 +86,17 @@ Model created: 105.86M params
 
 ```python
 from versper.config import VLMConfig, OmniConfig
-from versper.vlm import MiniMindVLM
-from versper.omni import MiniMindOmni
+from versper.vlm import VersperVLM
+from versper.omni import VersperOmni
 
 # VLM（不含视觉编码器，因未指定模型路径）
 vcfg = VLMConfig()
-vlm = MiniMindVLM(vcfg, vision_model_path=None)
+vlm = VersperVLM(vcfg, vision_model_path=None)
 print(f"VLM params: {sum(p.numel() for p in vlm.parameters())/1e6:.2f}M")
 
 # Omni（不含编码器）
 ocfg = OmniConfig()
-omni = MiniMindOmni(ocfg, audio_encoder_path=None, vision_model_path=None)
+omni = VersperOmni(ocfg, audio_encoder_path=None, vision_model_path=None)
 print(f"Omni params: {sum(p.numel() for p in omni.parameters())/1e6:.2f}M")
 ```
 
@@ -108,22 +108,22 @@ print(f"Omni params: {sum(p.numel() for p in omni.parameters())/1e6:.2f}M")
 
 | 文件 | HuggingFace 源 |
 |------|---------------|
-| MiniMind 分词器 | [jyaogong/minimind](https://huggingface.co/jyaogong/minimind) |
+| Versper 分词器 | [jyaogong/minimind](https://huggingface.co/jyaogong/minimind) |
 | 预训练权重 (`pretrain_768.pth`) | [jyaogong/minimind](https://huggingface.co/jyaogong/minimind) |
 | Omni SFT 权重 (`sft_omni_768.pth`) | [jyaogong/minimind-o](https://huggingface.co/jyaogong/minimind-o) |
 | SenseVoice 音频编码器 | [iic/SenseVoiceSmall](https://huggingface.co/iic/SenseVoiceSmall) |
 | SigLIP2 视觉编码器 | [google/siglip2-base-patch16-256](https://huggingface.co/google/siglip2-base-patch16-256) |
 
-> 注意：MiniMind-O 中实际使用的视觉编码器是 SigLIP2 base-p32-256-ve 变体（patch size 32，输出 256 维）。如果 HuggingFace 上找不到完全一致的路径，可下载 `siglip2-base-patch16-256` 后自行配置，或使用 `vision_model_path=None` 跳过视觉编码器加载。
+> 注意：Versper-O 中实际使用的视觉编码器是 SigLIP2 base-p32-256-ve 变体（patch size 32，输出 256 维）。如果 HuggingFace 上找不到完全一致的路径，可下载 `siglip2-base-patch16-256` 后自行配置，或使用 `vision_model_path=None` 跳过视觉编码器加载。
 
 ### 期望目录结构
 
 ```
 model/
-├── tokenizer.model                  # MiniMind sentencepiece 分词器
+├── tokenizer.model                  # Versper sentencepiece 分词器
 ├── tokenizer_config.json            # HuggingFace 分词器配置
 ├── special_tokens_map.json          # 特殊 token 映射
-├── pretrain_768.pth                 # MiniMind 预训练权重（768 hidden, 8层）
+├── pretrain_768.pth                 # Versper 预训练权重（768 hidden, 8层）
 ├── sft_omni_768.pth                 # Omni SFT 权重（含 Thinker + Talker）
 ├── SenseVoiceSmall/                 # SenseVoice 音频编码器（funasr 格式）
 │   ├── model.pt
@@ -140,11 +140,11 @@ model/
 
 ```python
 import torch
-from versper.config import MiniMindConfig
-from versper.model import MiniMindForCausalLM
+from versper.config import VersperConfig
+from versper.model import VersperForCausalLM
 
-cfg = MiniMindConfig()
-model = MiniMindForCausalLM(cfg)
+cfg = VersperConfig()
+model = VersperForCausalLM(cfg)
 state_dict = torch.load("./model/pretrain_768.pth", map_location="cpu", weights_only=True)
 model.load_state_dict(state_dict, strict=False)
 print("Weights loaded successfully")
@@ -193,7 +193,7 @@ dataset/
 # 降低推理批次大小（默认 1）
 # 使用 torch.cuda.empty_cache() 释放缓存
 # 或使用 CPU 推理进行初步调试
-model = MiniMindForCausalLM(cfg).eval()  # 不调用 .cuda()
+model = VersperForCausalLM(cfg).eval()  # 不调用 .cuda()
 ```
 
 ### 模型文件缺失或加载失败
@@ -203,7 +203,7 @@ model = MiniMindForCausalLM(cfg).eval()  # 不调用 .cuda()
 - 使用 `strict=False` 忽略缺失的键（如编码器权重在 Omni 加载时可能不匹配）
 
 ```
-RuntimeError: Error(s) in loading state_dict for MiniMindForCausalLM:
+RuntimeError: Error(s) in loading state_dict for VersperForCausalLM:
     Missing key(s) in state_dict: ...
 ```
 

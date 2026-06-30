@@ -1,12 +1,12 @@
-# 视觉语言模型 -- MiniMindVLM
+# 视觉语言模型 -- VersperVLM
 
 ## 概述
 
-`MiniMindVLM` (`vlm.py:34`) 继承自 `MiniMindForCausalLM`，在纯文本语言模型的基础上添加了视觉输入能力。它使用 SigLIP2 作为视觉编码器，通过一个 MLP 投影器将视觉特征映射到 LLM 的隐空间。
+`VersperVLM` (`vlm.py:34`) 继承自 `VersperForCausalLM`，在纯文本语言模型的基础上添加了视觉输入能力。它使用 SigLIP2 作为视觉编码器，通过一个 MLP 投影器将视觉特征映射到 LLM 的隐空间。
 
 ```
-MiniMindForCausalLM
-  └── MiniMindVLM (config_class = VLMConfig)
+VersperForCausalLM
+  └── VersperVLM (config_class = VLMConfig)
         ├── vision_encoder: SigLIP2 (冻结, 94.55M 参数)
         ├── processor: SiglipImageProcessor
         └── vision_proj: MMVisionProjector (1.18M 参数)
@@ -52,7 +52,7 @@ MMVisionProjector(768 → 768):
 ## 初始化
 
 ```python
-class MiniMindVLM(MiniMindForCausalLM):
+class VersperVLM(VersperForCausalLM):
     def __init__(
         self,
         config: VLMConfig = None,
@@ -61,13 +61,13 @@ class MiniMindVLM(MiniMindForCausalLM):
 ```
 
 - 如果 `vision_model_path` 不存在或加载失败，`vision_encoder` 和 `processor` 均为 `None`
-- 这种情况下模型退化为纯文本模型，等同于 `MiniMindForCausalLM`
+- 这种情况下模型退化为纯文本模型，等同于 `VersperForCausalLM`
 
 ### 无视觉路径的 VLM
 
 ```python
 # 仅加载 LLM 权重，无视觉编码器
-vlm = MiniMindVLM(config, vision_model_path="nonexistent")
+vlm = VersperVLM(config, vision_model_path="nonexistent")
 assert vlm.vision_encoder is None  # 退化为文本模型
 ```
 
@@ -75,7 +75,7 @@ assert vlm.vision_encoder is None  # 退化为文本模型
 
 ```python
 vlm_config = VLMConfig(hidden_size=768, num_hidden_layers=8)
-vlm = MiniMindVLM(vlm_config, vision_model_path="./model/siglip2-base-p32-256-ve")
+vlm = VersperVLM(vlm_config, vision_model_path="./model/siglip2-base-p32-256-ve")
 ```
 
 ---
@@ -130,7 +130,7 @@ if pixel_values is not None and start_pos == 0:
 
 ## 前向传播
 
-`MiniMindVLM.forward` (`vlm.py:114`) 扩展了父类的 forward：
+`VersperVLM.forward` (`vlm.py:114`) 扩展了父类的 forward：
 
 1. **文本 embedding**: 同父类
 2. **视觉注入**: 仅在 `start_pos == 0` 时执行
@@ -169,16 +169,16 @@ def generate(self, *args, num_return_sequences=1, **kwargs):
 ```python
 from PIL import Image
 from versper.config import VLMConfig
-from versper.vlm import MiniMindVLM
+from versper.vlm import VersperVLM
 
 # 初始化
 config = VLMConfig()
-model = MiniMindVLM(config, vision_model_path="./model/siglip2-base-p32-256-ve")
+model = VersperVLM(config, vision_model_path="./model/siglip2-base-p32-256-ve")
 model.eval()
 
 # 图像预处理
 image = Image.open("photo.jpg")
-pixel_values = MiniMindVLM.image2tensor(image, model.processor)
+pixel_values = VersperVLM.image2tensor(image, model.processor)
 
 # 推理
 input_ids = tokenizer.encode("<|image_pad|>这是什么？")

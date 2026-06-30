@@ -1,11 +1,11 @@
 # VersperOmni 整体架构总览
 
-> 基于 MiniMind-O Technical Report 整理，适用于学习和面试准备
+> 基于 Versper-O Technical Report 整理，适用于学习和面试准备
 > 代码集中于 `src/versper/` 单一包中：`model.py`（LM）、`vlm.py`（VLM）、`omni.py`（Omni）
 
 ## 1. 项目定位
 
-VersperOmni 是一个**开源的小规模语音原生全模态模型**（Omni Model），核心思想源自 MiniMind-O。在**约 0.1B 活跃参数**的规模下，实现文本、语音、图像三种输入，以及文本 + 流式语音输出。
+VersperOmni 是一个**开源的小规模语音原生全模态模型**（Omni Model），核心思想源自 Versper-O。在**约 0.1B 活跃参数**的规模下，实现文本、语音、图像三种输入，以及文本 + 流式语音输出。
 
 ### 关键特点
 
@@ -23,7 +23,7 @@ VersperOmni 是一个**开源的小规模语音原生全模态模型**（Omni Mo
                          ┌─────────────────────┐
   Text ────────────────► │                     │
                          │      Thinker        │
-  Audio ──► SenseVoice ──┤   (MiniMind 8层)    │
+  Audio ──► SenseVoice ──┤   (Versper 8层)    │
           (frozen)       │                     │
                          │  hidden[bridge]     ├────► Text Output
   Image ──► SigLIP2 ────┤                     │
@@ -33,7 +33,7 @@ VersperOmni 是一个**开源的小规模语音原生全模态模型**（Omni Mo
                                   ▼
                          ┌─────────────────────┐
                          │       Talker         │
-  Codec History ────────►│   (4层 MiniMind)     │
+  Codec History ────────►│   (4层 Versper)     │
                          │                     ├────► Mimi Codes ──► 24kHz Audio
   Speaker Ref ──────────►│  fusion: bridge +    │
   CAM++ ────────────────►│  codec history       │
@@ -41,19 +41,19 @@ VersperOmni 是一个**开源的小规模语音原生全模态模型**（Omni Mo
 ```
 
 ### Thinker（思考器）
-- 完整的 **MiniMind Transformer**：8 层、hidden 768、8 query heads、4 KV heads
+- 完整的 **Versper Transformer**：8 层、hidden 768、8 query heads、4 KV heads
 - 词表大小 6400（轻量级 tokenizer）
 - 负责语义理解、推理、文本生成
 - **Dense 版**：63.91M 参数 / **MoE 版**：198.42M 总参数（活跃 ~同 Dense）
-- 代码位置：`src/versper/model.py` 中的 `MiniMindForCausalLM`
+- 代码位置：`src/versper/model.py` 中的 `VersperForCausalLM`
 
 ### Talker（说话器）
-- 独立的 **4 层 MiniMind blocks**
+- 独立的 **4 层 Versper blocks**
 - hidden 768，audio vocab 2112，8 codebook heads
 - **rank-256 低秩 adapter**（输入输出各 8 份，共享底座）
 - **Dense 版**：47.05M 参数 / **MoE 版**：114.30M 总参数
 - 初始化：从 Thinker 最后 4 层拷贝权重（维度匹配时）
-- 代码位置：`src/versper/omni.py` 中的 `MiniMindOmni`
+- 代码位置：`src/versper/omni.py` 中的 `VersperOmni`
 
 ## 3. 输入处理管线
 
@@ -125,10 +125,10 @@ VersperOmni 是一个**开源的小规模语音原生全模态模型**（Omni Mo
 三个模型统一在 `src/versper/` 包中：
 
 ```python
-from versper.config import MiniMindConfig, VLMConfig, OmniConfig
-from versper.model import MiniMindForCausalLM
-from versper.vlm import MiniMindVLM
-from versper.omni import MiniMindOmni
+from versper.config import VersperConfig, VLMConfig, OmniConfig
+from versper.model import VersperForCausalLM
+from versper.vlm import VersperVLM
+from versper.omni import VersperOmni
 ```
 
 训练入口：

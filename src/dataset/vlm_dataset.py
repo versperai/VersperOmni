@@ -11,7 +11,7 @@ from PIL import Image
 from torch.utils.data import Dataset
 from datasets import Dataset as HFDataset
 
-from models.vlm import MiniMindVLM
+from models.vlm import VersperVLM
 from .lm_dataset import pre_processing_chat, post_processing_chat
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -106,7 +106,7 @@ class VLMDataset(Dataset):
         labels = self.generate_labels(input_ids)
 
         image_inputs_list = [
-            MiniMindVLM.image2tensor(Image.open(io.BytesIO(img)), self.preprocess)
+            VersperVLM.image2tensor(Image.open(io.BytesIO(img)), self.preprocess)
             for img in image_bytes
         ]
         if hasattr(image_inputs_list[0], "keys"):

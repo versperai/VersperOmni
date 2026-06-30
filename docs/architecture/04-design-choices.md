@@ -47,7 +47,7 @@ Layer 7 (最后层): 已高度聚焦于下一个 token 的分类 — 掺杂了 L
   参数: 8 × vocab × hidden + 8 × hidden × vocab
   问题: 参数量太大 (约 26M 参数，在 0.1B 模型中不可接受)
 
-方案 B: 共享底座 + 低秩 adapter（MiniMind-O 采用）
+方案 B: 共享底座 + 低秩 adapter（Versper-O 采用）
   Embedding: SharedBase(codebook_all) + ∑ rank_adapters
   Head:      SharedBase(codebook_all) + ∑ rank_adapters
   特点: 用少量 adapter 参数实现 codebook 特异性

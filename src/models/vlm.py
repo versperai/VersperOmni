@@ -1,5 +1,5 @@
 """
-Vision-Language Model (MiniMind-V) — extends MiniMind with SigLIP2 vision encoder.
+Vision-Language Model (Versper-V) — extends Versper with SigLIP2 vision encoder.
 """
 import os
 import torch
@@ -9,7 +9,7 @@ from transformers import SiglipImageProcessor, SiglipVisionModel
 from transformers.modeling_outputs import MoeCausalLMOutputWithPast
 
 from config import VLMConfig
-from models.llm import MiniMindForCausalLM
+from models.llm import VersperForCausalLM
 from modules.norm import RMSNorm
 from modules.rope import precompute_freqs_cis
 from modules.feed_forward import MOEFeedForward
@@ -31,8 +31,8 @@ class MMVisionProjector(nn.Module):
         return self.mlp(x)
 
 
-class MiniMindVLM(MiniMindForCausalLM):
-    """MiniMind with visual input support (SigLIP2 encoder + MLP projector)."""
+class VersperVLM(VersperForCausalLM):
+    """Versper with visual input support (SigLIP2 encoder + MLP projector)."""
 
     config_class = VLMConfig
 
@@ -138,7 +138,7 @@ class MiniMindVLM(MiniMindForCausalLM):
                 sample_val = next(iter(pixel_values.values()))
                 if sample_val.ndim == 5:
                     bs, num = sample_val.shape[:2]
-                    img_emb = MiniMindVLM.get_image_embeddings(
+                    img_emb = VersperVLM.get_image_embeddings(
                         {k: v.flatten(0, 1) for k, v in pixel_values.items()},
                         self.vision_encoder,
                     )
@@ -148,7 +148,7 @@ class MiniMindVLM(MiniMindForCausalLM):
                     )
                 else:
                     vision_tensors = self.vision_proj(
-                        MiniMindVLM.get_image_embeddings(pixel_values, self.vision_encoder)
+                        VersperVLM.get_image_embeddings(pixel_values, self.vision_encoder)
                     )
             else:
                 if len(pixel_values.shape) == 6:
@@ -157,7 +157,7 @@ class MiniMindVLM(MiniMindForCausalLM):
                 vision_tensors = torch.stack(
                     [
                         self.vision_proj(
-                            MiniMindVLM.get_image_embeddings(
+                            VersperVLM.get_image_embeddings(
                                 pixel_values[:, i, :, :, :], self.vision_encoder
                             )
                         )
